@@ -3,7 +3,10 @@ import time
 import traceback
 from typing import List, Dict, Any
 
-from groq import Groq
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -19,11 +22,15 @@ class AuditQuestionsOutput(BaseModel):
 
 
 def _get_groq_client() -> Groq:
+    if Groq is None:
+        raise RuntimeError("Groq client is not installed. Set GROQ_API_KEY and install groq.")
     return Groq(api_key=GROQ_API_KEY)
 
 
 def _groq_chat(prompt: str) -> str:
     """Helper: sends a single prompt to Groq and returns the text response."""
+    if not GROQ_API_KEY:
+        raise RuntimeError("GROQ_API_KEY is not configured.")
     client = _get_groq_client()
     chat_completion = client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
@@ -67,7 +74,7 @@ def chat_with_financials(query: str, raw_data: Dict[str, Any], anomalies: List[D
     try:
         return _groq_chat(prompt)
     except Exception as e:
-        return f"Error analyzing data: {e}"
+        return "AI chat is temporarily unavailable."
 
 
 def generate_audit_questions(anomalies: List[Dict[str, Any]], ratios: List[Dict[str, Any]]) -> List[str]:
@@ -119,3 +126,21 @@ def generate_audit_questions(anomalies: List[Dict[str, Any]], ratios: List[Dict[
                 print(f"Groq call failed after 3 attempts: {e}")
                 traceback.print_exc()
                 return ["Failed to generate questions due to AI service unavailability. Please try again later."]
+
+
+def generate_fallback_audit_questions(anomalies: List[Dict[str, Any]], ratios: List[Dict[str, Any]]) -> List[str]:
+    questions = []
+
+    if anomalies:
+        first_anomaly = anomalies[0]
+        description = first_anomaly.get("description", "the detected anomaly")
+        questions.append(f"Can management explain the cause of {description}?")
+
+    if ratios:
+        first_ratio = ratios[0]
+        ratio_name = first_ratio.get("name", "the reported ratio")
+        questions.append(f"What supports the recent movement in {ratio_name}?")
+
+    questions.append("What controls are in place to prevent similar issues in future periods?")
+
+    return questions[:3]
