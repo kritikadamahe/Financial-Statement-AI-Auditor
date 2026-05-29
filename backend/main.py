@@ -6,10 +6,11 @@ import schemas
 from services.parser import parse_financial_statement
 from services.analysis import extract_financial_metrics, calculate_ratios, detect_anomalies
 from services.ai import generate_audit_questions
-from database import engine, Base, get_db
+from database import engine, Base, get_db, ensure_financial_records_schema
 
 # Create tables (safe to run repeatedly — only creates if not existing)
 Base.metadata.create_all(bind=engine)
+ensure_financial_records_schema()
 
 app = FastAPI(title="Financial Audit Prep API")
 
