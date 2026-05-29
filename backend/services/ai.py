@@ -82,6 +82,9 @@ def generate_audit_questions(anomalies: List[Dict[str, Any]], ratios: List[Dict[
     Uses Groq (Llama 3.3 70B) to generate auditor-style questions based on detected anomalies.
     Returns a clean list of question strings.
     """
+    if Groq is None or not GROQ_API_KEY:
+        return generate_fallback_audit_questions(anomalies, ratios)
+
     # Build a rich prompt with full context
     prompt = (
         "You are a senior financial auditor reviewing a company's financial statements. "
