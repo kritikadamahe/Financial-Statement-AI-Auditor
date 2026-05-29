@@ -147,7 +147,7 @@ export default function Home() {
   // Chart data derived from result
   const prepareChartData = () => {
     if (!result?.ratios) return [];
-    const years = result.raw_data_summary.years_analyzed;
+    const years = result.raw_data_summary?.years_analyzed ?? [];
     const dataByYear: Record<string, any> = {};
     years.forEach((y) => { dataByYear[y] = { name: y }; });
     result.ratios.forEach((r) => {
@@ -157,8 +157,12 @@ export default function Home() {
   };
 
   const chartData = prepareChartData();
-  const latestYear = result?.raw_data_summary.years_analyzed.at(-1);
-  const latestRatios = result?.ratios.filter((r) => r.year === latestYear) ?? [];
+  const yearsAnalyzed = result?.raw_data_summary?.years_analyzed ?? [];
+  const latestYear = yearsAnalyzed.at(-1);
+  const latestRatios = result?.ratios?.filter((r) => r.year === latestYear) ?? [];
+  const currentRatios = result?.ratios ?? [];
+  const currentAnomalies = result?.anomalies ?? [];
+  const currentQuestions = result?.audit_questions ?? [];
 
   // ── Sidebar ────────────────────────────────────────────────────────────────
 
@@ -376,7 +380,7 @@ export default function Home() {
                   <h2 className="text-3xl font-bold text-white mb-1">Audit Analysis Report</h2>
                   <p className="text-slate-400 text-sm">
                     {result.filename && <span className="mr-2 font-medium text-slate-300">{result.filename}</span>}
-                    Years: {result.raw_data_summary.years_analyzed.join(", ")}
+                    Years: {yearsAnalyzed.join(", ") || "N/A"}
                   </p>
                 </div>
                 <button
@@ -392,10 +396,10 @@ export default function Home() {
               {/* Quick stats row */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: "Years Analyzed", value: result.raw_data_summary.years_analyzed.length, icon: <Activity className="w-4 h-4" />, color: "indigo" },
-                  { label: "Ratios Computed", value: result.ratios.length, icon: <BarChart3 className="w-4 h-4" />, color: "blue" },
-                  { label: "Anomalies Found", value: result.anomalies.length, icon: <AlertTriangle className="w-4 h-4" />, color: result.anomalies.length > 0 ? "red" : "emerald" },
-                  { label: "AI Questions", value: result.audit_questions.length, icon: <BrainCircuit className="w-4 h-4" />, color: "purple" },
+                  { label: "Years Analyzed", value: yearsAnalyzed.length, icon: <Activity className="w-4 h-4" />, color: "indigo" },
+                  { label: "Ratios Computed", value: currentRatios.length, icon: <BarChart3 className="w-4 h-4" />, color: "blue" },
+                  { label: "Anomalies Found", value: currentAnomalies.length, icon: <AlertTriangle className="w-4 h-4" />, color: currentAnomalies.length > 0 ? "red" : "emerald" },
+                  { label: "AI Questions", value: currentQuestions.length, icon: <BrainCircuit className="w-4 h-4" />, color: "purple" },
                 ].map((stat, i) => (
                   <div key={i} className="bg-slate-900/40 border border-white/10 rounded-xl p-4 flex items-center gap-3">
                     <div className={`p-2 rounded-lg bg-${stat.color}-500/10 text-${stat.color}-400`}>
@@ -462,8 +466,8 @@ export default function Home() {
                   </div>
 
                   <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
-                    {result.anomalies.length > 0 ? (
-                      result.anomalies.map((anomaly, idx) => (
+                    {currentAnomalies.length > 0 ? (
+                      currentAnomalies.map((anomaly, idx) => (
                         <div key={idx} className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
                           <div className="mb-2">
                             <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-md border ${severityColor(anomaly.severity)}`}>
@@ -500,7 +504,7 @@ export default function Home() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {result.audit_questions.map((question, idx) => (
+                    {currentQuestions.map((question, idx) => (
                       <div
                         key={idx}
                         className="flex items-start gap-4 p-5 rounded-xl bg-slate-900/60 border border-white/5
