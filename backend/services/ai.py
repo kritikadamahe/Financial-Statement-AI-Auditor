@@ -3,30 +3,78 @@ import time
 import traceback
 from typing import List, Dict, Any
 
-import google.generativeai as genai
+from groq import Groq
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
 load_dotenv()
 
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
 
 # --- Structured Output Schema ---
-# Defining this schema forces Gemini to return a valid JSON object with a
-# "questions" key that holds a list of strings.  No newline-splitting needed.
 class AuditQuestionsOutput(BaseModel):
     questions: List[str]
 
 
+def _get_groq_client() -> Groq:
+    return Groq(api_key=GROQ_API_KEY)
+
+
+def _groq_chat(prompt: str) -> str:
+    """Helper: sends a single prompt to Groq and returns the text response."""
+    client = _get_groq_client()
+    chat_completion = client.chat.completions.create(
+        messages=[{"role": "user", "content": prompt}],
+        model=GROQ_MODEL,
+        temperature=0.4,
+        max_tokens=1024,
+    )
+    return chat_completion.choices[0].message.content
+
+
+def check_compliance(raw_data_summary: Dict[str, Any]) -> List[str]:
+    """
+    Validates financial format against GAAP/IFRS using Groq.
+    """
+    prompt = (
+        "You are an expert CPA. Review the following financial statement metrics "
+        "and list any potential GAAP/IFRS compliance flags or missing standard line items.\n"
+        f"{raw_data_summary}\n\n"
+        "Return 2-3 short bullet points only. Do not use asterisks or formatting."
+    )
+
+    try:
+        text = _groq_chat(prompt)
+        flags = [f.strip().lstrip("-").strip() for f in text.split("\n") if f.strip()]
+        return flags
+    except Exception:
+        return ["Unable to perform compliance check at this time."]
+
+
+def chat_with_financials(query: str, raw_data: Dict[str, Any], anomalies: List[Dict[str, Any]]) -> str:
+    """
+    Answers a natural language query based on the uploaded spreadsheet data using Groq.
+    """
+    prompt = (
+        "You are a financial analyst copilot. Answer the user's question based strictly on the provided financial data.\n"
+        f"Data: {raw_data}\n"
+        f"Anomalies: {anomalies}\n\n"
+        f"User Question: {query}"
+    )
+
+    try:
+        return _groq_chat(prompt)
+    except Exception as e:
+        return f"Error analyzing data: {e}"
+
+
 def generate_audit_questions(anomalies: List[Dict[str, Any]], ratios: List[Dict[str, Any]]) -> List[str]:
     """
-    Uses Gemini to generate auditor-style questions based on detected anomalies.
-    Returns a clean list of question strings via structured JSON output.
+    Uses Groq (Llama 3.3 70B) to generate auditor-style questions based on detected anomalies.
+    Returns a clean list of question strings.
     """
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        print("Warning: GEMINI_API_KEY not found. Skipping AI generation.")
-        return ["AI integration is disabled. Please set GEMINI_API_KEY."]
-
     # Build a rich prompt with full context
     prompt = (
         "You are a senior financial auditor reviewing a company's financial statements. "
@@ -53,15 +101,11 @@ def generate_audit_questions(anomalies: List[Dict[str, Any]], ratios: List[Dict[
 
     for attempt in range(3):
         try:
-            genai.configure(api_key=api_key)
-
-            model = genai.GenerativeModel('gemini-1.5-flash')
-
-            response = model.generate_content(prompt)
+            text = _groq_chat(prompt)
 
             questions = [
                 q.strip().lstrip("-").strip()
-                for q in response.text.split("\n")
+                for q in text.split("\n")
                 if q.strip()
             ]
 
@@ -69,9 +113,9 @@ def generate_audit_questions(anomalies: List[Dict[str, Any]], ratios: List[Dict[
 
         except Exception as e:
             if attempt < 2:
-                print(f"Gemini call failed (Attempt {attempt + 1}/3), retrying in 2s: {e}")
+                print(f"Groq call failed (Attempt {attempt + 1}/3), retrying in 2s: {e}")
                 time.sleep(2)
             else:
-                print(f"Gemini call failed after 3 attempts: {e}")
+                print(f"Groq call failed after 3 attempts: {e}")
                 traceback.print_exc()
                 return ["Failed to generate questions due to AI service unavailability. Please try again later."]

@@ -64,6 +64,11 @@ class FinancialRecordResponse(BaseModel):
     anomalies: Optional[List[AnomalyResult]] = []
     audit_questions: Optional[List[str]] = []
     raw_data_summary: Optional[Dict[str, Any]] = {}
+    
+    # New V2 Features
+    raw_parsed_data: Optional[Dict[str, Any]] = None
+    industry_benchmarks: Optional[Dict[str, Any]] = None
+    compliance_flags: Optional[List[str]] = []
 
     class Config:
         from_attributes = True

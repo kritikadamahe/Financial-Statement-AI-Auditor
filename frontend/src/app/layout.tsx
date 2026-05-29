@@ -26,8 +26,9 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <DottedSurface className="pointer-events-none fixed inset-0 z-0" />
-          <div className="relative z-10 flex min-h-screen flex-col">
+          <div className="fixed inset-0 z-0 bg-slate-50 dark:bg-[#121212]" />
+          <DottedSurface className="pointer-events-none fixed inset-0 z-0 opacity-50 dark:opacity-30" />
+          <div className="relative z-10 flex min-h-screen flex-col text-slate-900 dark:text-slate-100">
             {children}
           </div>
         </ThemeProvider>

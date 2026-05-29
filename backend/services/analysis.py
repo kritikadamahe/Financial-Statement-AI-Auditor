@@ -1,6 +1,37 @@
 import pandas as pd
 from typing import List, Dict, Any
 
+INDUSTRY_BENCHMARKS = {
+    "Technology": {
+        "Current Ratio": 1.5,
+        "Gross Margin (%)": 70.0,
+        "Debt-to-Equity Ratio": 0.5,
+        "Net Profit Margin (%)": 20.0
+    },
+    "Manufacturing": {
+        "Current Ratio": 1.2,
+        "Gross Margin (%)": 35.0,
+        "Debt-to-Equity Ratio": 1.0,
+        "Net Profit Margin (%)": 10.0
+    },
+    "Retail": {
+        "Current Ratio": 1.1,
+        "Gross Margin (%)": 40.0,
+        "Debt-to-Equity Ratio": 0.8,
+        "Net Profit Margin (%)": 5.0
+    },
+    "Healthcare": {
+        "Current Ratio": 1.4,
+        "Gross Margin (%)": 55.0,
+        "Debt-to-Equity Ratio": 0.6,
+        "Net Profit Margin (%)": 12.0
+    }
+}
+
+def get_industry_benchmarks(industry: str = "Technology") -> Dict[str, float]:
+    return INDUSTRY_BENCHMARKS.get(industry, INDUSTRY_BENCHMARKS["Technology"])
+
+
 
 def clean_financial_value(raw: str) -> float:
     """

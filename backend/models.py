@@ -16,3 +16,8 @@ class FinancialRecord(Base):
     anomalies = Column(JSON, nullable=True)        # List of anomaly dicts
     audit_questions = Column(JSON, nullable=True)  # List of question strings
     raw_data_summary = Column(JSON, nullable=True) # Dict with metadata (e.g. years_analyzed)
+    
+    # New V2 Features
+    raw_parsed_data = Column(JSON, nullable=True)  # Store raw DF dict for chat
+    industry_benchmarks = Column(JSON, nullable=True) # Benchmark dict
+    compliance_flags = Column(JSON, nullable=True) # List of compliance violation strings
