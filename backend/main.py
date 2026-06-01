@@ -12,7 +12,7 @@ from database import engine, Base, get_db
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Financial Audit Prep API v2")
+app = FastAPI(title="Auditr API")
 
 app.add_middleware(
     CORSMiddleware,

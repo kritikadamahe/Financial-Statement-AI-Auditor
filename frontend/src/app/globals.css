@@ -27,7 +27,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: "Times New Roman", Times, serif;
+  --font-secondary: "Book Antiqua", Palatino, serif;
   --font-mono: var(--font-geist-mono);
   
   --color-color-1: hsl(var(--color-1));

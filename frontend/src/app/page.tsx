@@ -354,8 +354,8 @@ export default function Home() {
             <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <Activity className="w-4 h-4 text-white" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-              FinAudit<span className="text-emerald-500">AI</span>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white font-secondary">
+              Auditr
             </h1>
           </div>
         </div>
