@@ -1,5 +1,18 @@
 import pandas as pd
 from typing import List, Dict, Any
+import yfinance as yf
+import time
+
+# Cache to avoid spamming Yahoo Finance APIs
+_BENCHMARK_CACHE = {}
+_CACHE_TTL = 3600  # 1 hour
+
+PEER_GROUPS = {
+    "Technology": ["MSFT", "AAPL", "GOOGL"],
+    "Manufacturing": ["CAT", "DE", "MMM"],
+    "Retail": ["WMT", "TGT", "COST"],
+    "Healthcare": ["JNJ", "PFE", "MRK"]
+}
 
 INDUSTRY_BENCHMARKS = {
     "Technology": {
@@ -28,8 +41,64 @@ INDUSTRY_BENCHMARKS = {
     }
 }
 
+def fetch_realtime_benchmarks(industry: str) -> Dict[str, float]:
+    """
+    Fetches real-time average metrics for the given industry using yfinance.
+    Uses an in-memory cache to prevent slow API calls on repeated requests.
+    """
+    now = time.time()
+    if industry in _BENCHMARK_CACHE:
+        cached_data, timestamp = _BENCHMARK_CACHE[industry]
+        if now - timestamp < _CACHE_TTL:
+            print(f"[Benchmarks] Using cached real-time data for {industry}")
+            return cached_data
+
+    tickers = PEER_GROUPS.get(industry, PEER_GROUPS["Technology"])
+    metrics = {
+        "Current Ratio": [],
+        "Gross Margin (%)": [],
+        "Debt-to-Equity Ratio": [],
+        "Net Profit Margin (%)": []
+    }
+
+    print(f"[Benchmarks] Fetching live data for {industry} peers: {tickers}")
+    try:
+        for ticker_symbol in tickers:
+            ticker = yf.Ticker(ticker_symbol)
+            info = ticker.info
+
+            if "currentRatio" in info and info["currentRatio"] is not None:
+                metrics["Current Ratio"].append(info["currentRatio"])
+            
+            if "grossMargins" in info and info["grossMargins"] is not None:
+                metrics["Gross Margin (%)"].append(info["grossMargins"] * 100)
+            
+            if "debtToEquity" in info and info["debtToEquity"] is not None:
+                # yfinance debtToEquity is often represented as a percentage (e.g., 50 for 0.5)
+                metrics["Debt-to-Equity Ratio"].append(info["debtToEquity"] / 100.0)
+            
+            if "profitMargins" in info and info["profitMargins"] is not None:
+                metrics["Net Profit Margin (%)"].append(info["profitMargins"] * 100)
+
+        # Calculate averages
+        avg_metrics = {}
+        for metric, values in metrics.items():
+            if values:
+                avg_metrics[metric] = round(sum(values) / len(values), 2)
+            else:
+                # Fallback to hardcoded if metric is entirely missing
+                avg_metrics[metric] = INDUSTRY_BENCHMARKS.get(industry, INDUSTRY_BENCHMARKS["Technology"])[metric]
+
+        _BENCHMARK_CACHE[industry] = (avg_metrics, now)
+        print(f"[Benchmarks] Live averages for {industry}: {avg_metrics}")
+        return avg_metrics
+
+    except Exception as e:
+        print(f"[Benchmarks] Failed to fetch live data for {industry}: {e}. Falling back to static benchmarks.")
+        return INDUSTRY_BENCHMARKS.get(industry, INDUSTRY_BENCHMARKS["Technology"])
+
 def get_industry_benchmarks(industry: str = "Technology") -> Dict[str, float]:
-    return INDUSTRY_BENCHMARKS.get(industry, INDUSTRY_BENCHMARKS["Technology"])
+    return fetch_realtime_benchmarks(industry)
 
 
 
