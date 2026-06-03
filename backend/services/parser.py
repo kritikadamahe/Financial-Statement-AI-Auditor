@@ -1,5 +1,7 @@
 import pandas as pd
 import io
+import fitz  # PyMuPDF
+from services.ai import extract_csv_from_pdf_text
 
 def parse_financial_statement(file_contents: bytes, filename: str) -> pd.DataFrame:
     """
@@ -25,8 +27,24 @@ def parse_financial_statement(file_contents: bytes, filename: str) -> pd.DataFra
             
     elif filename.endswith(".xlsx") or filename.endswith(".xls"):
         df = pd.read_excel(io.BytesIO(file_contents))
+    elif filename.endswith(".pdf"):
+        # Extract text from PDF
+        try:
+            doc = fitz.open(stream=file_contents, filetype="pdf")
+            raw_text = ""
+            for page in doc:
+                raw_text += page.get_text() + "\n\n"
+            
+            # Use Groq to extract structured CSV
+            csv_text = extract_csv_from_pdf_text(raw_text)
+            
+            # Load into Pandas
+            df = pd.read_csv(io.StringIO(csv_text))
+            
+        except Exception as e:
+            raise ValueError(f"Failed to process PDF: {e}")
     else:
-        raise ValueError("Unsupported file format. Please upload a CSV or Excel file.")
+        raise ValueError("Unsupported file format. Please upload a CSV, Excel, or PDF file.")
     
     # Basic cleaning
     df = df.dropna(how='all') # drop fully empty rows

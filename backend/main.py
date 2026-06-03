@@ -40,7 +40,7 @@ async def upload_file(
         
         # 1. Parse Data (Multi-file support)
         for file in files:
-            if not file.filename.endswith((".csv", ".xlsx", ".xls")):
+            if not file.filename.endswith((".csv", ".xlsx", ".xls", ".pdf")):
                 raise HTTPException(status_code=400, detail=f"Invalid file type for {file.filename}")
             filenames.append(file.filename)
             contents = await file.read()

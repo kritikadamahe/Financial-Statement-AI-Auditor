@@ -459,7 +459,7 @@ export default function Home() {
                       type="file"
                       id="file-upload"
                       className="hidden"
-                      accept=".csv, .xlsx, .xls"
+                      accept=".csv, .xlsx, .xls, .pdf"
                       multiple
                       onChange={handleFileChange}
                     />
@@ -472,8 +472,8 @@ export default function Home() {
                       <div className="p-3 bg-white dark:bg-[#222] rounded-full shadow-sm group-hover/dropzone:scale-110 transition-transform">
                         <FileText className="w-6 h-6 text-slate-400 group-hover/dropzone:text-emerald-500" />
                       </div>
-                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        {files.length > 0 ? `${files.length} file(s) selected` : "Select multiple files to cross-reference"}
+                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 text-center">
+                        {files.length > 0 ? `${files.length} file(s) selected` : "Select multiple files (CSV, Excel, PDF)"}
                       </span>
                     </label>
 
