@@ -1,4 +1,5 @@
 import os
+import csv
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -6,7 +7,7 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 
 def generate_pdf(filename, company_name, industry_desc, md_a, income_data, bs_data, cf_data):
-    out_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test_data")
+    out_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test_data", "pdf")
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, filename)
 
@@ -73,7 +74,25 @@ def generate_pdf(filename, company_name, industry_desc, md_a, income_data, bs_da
     story.append(styled_table(cf_data))
 
     doc.build(story)
-    print(f"Successfully generated: {out_path}")
+    print(f"Successfully generated PDF: {out_path}")
+    
+    # Generate matching Ground Truth CSV
+    csv_filename = filename.replace("detailed_", "").replace(".pdf", ".csv")
+    if "technology" in filename: csv_filename = "technology_saas_corp.csv"
+    elif "manufacturing" in filename: csv_filename = "manufacturing_industries.csv"
+    elif "retail" in filename: csv_filename = "retail_ecommerce_inc.csv"
+    elif "healthcare" in filename: csv_filename = "healthcare_biotech_ltd.csv"
+    
+    csv_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test_data", "csv")
+    os.makedirs(csv_dir, exist_ok=True)
+    
+    csv_path = os.path.join(csv_dir, csv_filename)
+    with open(csv_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(income_data[0]) # Header
+        for row in income_data[1:] + bs_data[1:] + cf_data[1:]:
+            writer.writerow(row)
+    print(f"Successfully generated CSV: {csv_path}")
 
 
 def main():

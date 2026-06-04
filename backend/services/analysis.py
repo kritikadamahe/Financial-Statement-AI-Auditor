@@ -235,7 +235,7 @@ def _check_benfords_law(metrics_by_year: Dict[str, Dict[str, float]]) -> Dict[st
             if val != 0 and not pd.isna(val):
                 all_numbers.append(abs(val))
     
-    if len(all_numbers) < 15: # Need some minimal sample
+    if len(all_numbers) < 50: # Need sufficient sample size for statistical validity
         return None
         
     first_digits = []
@@ -275,12 +275,14 @@ def _run_isolation_forest(metrics_by_year: Dict[str, Dict[str, float]]) -> List[
         scaled_data = scaler.fit_transform(df_imputed)
         
         # Isolate exactly the most distinct year if it's statistically distant
-        model = IsolationForest(contamination=0.25, random_state=42)
-        preds = model.fit_predict(scaled_data)
+        model = IsolationForest(contamination='auto', random_state=42)
+        model.fit(scaled_data)
+        scores = model.decision_function(scaled_data)
         
         anomalies = []
-        for i, pred in enumerate(preds):
-            if pred == -1:
+        for i, score in enumerate(scores):
+            # Only flag if it's deeply anomalous (negative score)
+            if score < -0.1:
                 outlier_year = df.index[i]
                 anomalies.append({
                     "description": f"Machine Learning (Isolation Forest) identified fiscal year {outlier_year} as a highly anomalous structural outlier compared to historical baselines.",
