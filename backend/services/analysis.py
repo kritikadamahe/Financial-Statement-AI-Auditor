@@ -1,11 +1,15 @@
 import pandas as pd
-from typing import List, Dict, Any
+import numpy as np
+from typing import List, Dict, Any, Optional, Tuple
 import yfinance as yf
 import time
 import math
 from scipy import stats
 from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import LocalOutlierFactor
+from sklearn.svm import OneClassSVM
+from sklearn.neural_network import MLPRegressor
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 # Cache to avoid spamming Yahoo Finance APIs
 _BENCHMARK_CACHE = {}
@@ -228,75 +232,362 @@ def calculate_ratios(metrics_by_year: Dict[str, Dict[str, float]]) -> List[Dict[
     return ratios
 
 
-def _check_benfords_law(metrics_by_year: Dict[str, Dict[str, float]]) -> Dict[str, Any]:
+def _compute_advanced_features(metrics_by_year: Dict[str, Dict[str, float]]) -> pd.DataFrame:
+    """
+    Feature Engineering: Computes derived financial features from raw metrics.
+    Returns a DataFrame with one row per year, containing:
+      - Raw metrics
+      - Financial ratios (Current Ratio, Debt-to-Equity, Net Margin, Gross Margin)
+      - Year-over-Year percentage changes
+      - Cross-metric consistency scores
+    """
+    years = sorted(metrics_by_year.keys())
+    rows = []
+    
+    for i, year in enumerate(years):
+        m = metrics_by_year[year]
+        row = dict(m)  # Start with raw metrics
+        
+        # --- Financial Ratios ---
+        rev = m.get("Revenue", 0)
+        cogs = m.get("Cost of Goods Sold", 0)
+        net_inc = m.get("Net Income", 0)
+        curr_a = m.get("Current Assets", 0)
+        curr_l = m.get("Current Liabilities", 0)
+        total_debt = m.get("Total Debt", 0)
+        total_eq = m.get("Total Equity", 0)
+        ocf = m.get("Operating Cash Flow", 0)
+        
+        row["_CurrentRatio"] = curr_a / curr_l if curr_l != 0 else 0
+        row["_DebtToEquity"] = total_debt / total_eq if total_eq != 0 else 0
+        row["_NetMargin"] = (net_inc / rev * 100) if rev != 0 else 0
+        row["_GrossMargin"] = ((rev - cogs) / rev * 100) if rev != 0 else 0
+        
+        # --- Cross-Metric Consistency Scores ---
+        # Revenue vs Cash Flow divergence (Enron red flag)
+        row["_RevCashFlowDivergence"] = abs(rev - ocf) / rev if rev != 0 else 0
+        # Net Income vs Cash Flow divergence (earnings quality)
+        row["_IncCashFlowDivergence"] = abs(net_inc - ocf) / abs(net_inc) if net_inc != 0 else 0
+        
+        # --- Year-over-Year Changes ---
+        if i > 0:
+            prev_m = metrics_by_year[years[i - 1]]
+            for metric_name in ["Revenue", "Net Income", "Operating Cash Flow", "Total Debt", "Current Assets"]:
+                prev_val = prev_m.get(metric_name, 0)
+                curr_val = m.get(metric_name, 0)
+                if prev_val != 0:
+                    row[f"_YoY_{metric_name}"] = (curr_val - prev_val) / abs(prev_val)
+                else:
+                    row[f"_YoY_{metric_name}"] = 0
+        else:
+            for metric_name in ["Revenue", "Net Income", "Operating Cash Flow", "Total Debt", "Current Assets"]:
+                row[f"_YoY_{metric_name}"] = 0
+        
+        rows.append(row)
+    
+    df = pd.DataFrame(rows, index=years)
+    return df
+
+
+def _check_benfords_law(metrics_by_year: Dict[str, Dict[str, float]]) -> Optional[Dict[str, Any]]:
+    """
+    Advanced Benford's Law analysis:
+      1. First-digit Chi-Square test
+      2. First-two-digit Chi-Square test (more granular)
+      3. Kolmogorov-Smirnov test (better for smaller samples)
+    Returns an anomaly dict if a significant violation is detected.
+    """
     all_numbers = []
     for year_data in metrics_by_year.values():
         for val in year_data.values():
             if val != 0 and not pd.isna(val):
                 all_numbers.append(abs(val))
     
-    if len(all_numbers) < 50: # Need sufficient sample size for statistical validity
+    if len(all_numbers) < 30:  # Relaxed from 50 to work with 5yrs × 10 metrics
         return None
         
+    # --- First-Digit Test ---
     first_digits = []
+    first_two_digits = []
     for num in all_numbers:
         digit_str = str(num).replace('.', '').replace('-', '').lstrip('0')
-        if digit_str:
+        if digit_str and len(digit_str) >= 1:
             first_digits.append(int(digit_str[0]))
+        if digit_str and len(digit_str) >= 2:
+            first_two_digits.append(int(digit_str[:2]))
             
+    violations = 0
+    details = []
+    
+    # Test 1: First-digit Chi-Square
     observed_counts = [first_digits.count(d) for d in range(1, 10)]
     expected_probs = [math.log10(1 + 1/d) for d in range(1, 10)]
     expected_counts = [p * len(first_digits) for p in expected_probs]
     expected_counts = [max(e, 1e-9) for e in expected_counts]
     
     try:
-        chi2_stat, p_val = stats.chisquare(f_obs=observed_counts, f_exp=expected_counts)
-        if p_val < 0.01: # Strict threshold for critical fraud flag
-            return {
-                "description": f"Benford's Law violation detected (p-value: {p_val:.4f}). The distribution of leading digits deviates significantly from natural expectations, suggesting potential artificial manipulation.",
-                "severity": "Critical",
-                "related_metrics": ["All Numerical Data"]
-            }
-    except Exception as e:
-        print(f"[ML] Benford test failed: {e}")
+        chi2_stat, chi2_p = stats.chisquare(f_obs=observed_counts, f_exp=expected_counts)
+        if chi2_p < 0.05:
+            violations += 1
+            details.append(f"First-digit Chi² p={chi2_p:.4f}")
+    except Exception:
+        pass
+    
+    # Test 2: First-two-digit Chi-Square (more sensitive)
+    if len(first_two_digits) >= 20:
+        observed_ft = [first_two_digits.count(d) for d in range(10, 100)]
+        expected_ft_probs = [math.log10(1 + 1/d) for d in range(10, 100)]
+        expected_ft = [p * len(first_two_digits) for p in expected_ft_probs]
+        expected_ft = [max(e, 1e-9) for e in expected_ft]
+        
+        try:
+            chi2_ft, p_ft = stats.chisquare(f_obs=observed_ft, f_exp=expected_ft)
+            if p_ft < 0.05:
+                violations += 1
+                details.append(f"First-two-digit Chi² p={p_ft:.4f}")
+        except Exception:
+            pass
+    
+    # Test 3: Kolmogorov-Smirnov test against Benford CDF
+    if len(first_digits) >= 10:
+        benford_cdf = np.cumsum([math.log10(1 + 1/d) for d in range(1, 10)])
+        observed_cdf = np.cumsum([first_digits.count(d) / len(first_digits) for d in range(1, 10)])
+        ks_stat = np.max(np.abs(observed_cdf - benford_cdf))
+        # Critical value approximation for KS test
+        ks_critical = 1.36 / math.sqrt(len(first_digits))
+        if ks_stat > ks_critical:
+            violations += 1
+            details.append(f"KS statistic={ks_stat:.4f} > critical={ks_critical:.4f}")
+    
+    if violations >= 2:  # Require at least 2 out of 3 tests to fail
+        return {
+            "description": f"Benford's Law violation detected via multiple tests ({'; '.join(details)}). The distribution of leading digits deviates significantly from natural expectations, suggesting potential artificial manipulation.",
+            "severity": "Critical",
+            "related_metrics": ["All Numerical Data"]
+        }
         
     return None
 
-def _run_isolation_forest(metrics_by_year: Dict[str, Dict[str, float]]) -> List[Dict[str, Any]]:
-    df = pd.DataFrame.from_dict(metrics_by_year, orient='index')
-    if len(df) < 3:
-        return [] 
+
+def _run_ensemble_detection(metrics_by_year: Dict[str, Dict[str, float]]) -> Tuple[List[Dict[str, Any]], Dict[str, float]]:
+    """
+    Ensemble Anomaly Detection combining three unsupervised algorithms:
+      1. Isolation Forest (tree-based structural outliers)
+      2. Local Outlier Factor (density-based local anomalies)
+      3. One-Class SVM (boundary-based normal envelope)
+    
+    Returns (anomalies_list, scores_dict_by_year).
+    Each algorithm votes independently; a year is flagged only if ≥2 algorithms agree.
+    """
+    feature_df = _compute_advanced_features(metrics_by_year)
+    if len(feature_df) < 3:
+        return [], {}
         
-    # Impute missing values with column mean, then 0
-    df_imputed = df.fillna(df.mean(numeric_only=True)).fillna(0)
+    # Impute and scale
+    df_imputed = feature_df.fillna(feature_df.mean(numeric_only=True)).fillna(0)
     
     try:
         scaler = StandardScaler()
         scaled_data = scaler.fit_transform(df_imputed)
         
-        # Isolate exactly the most distinct year if it's statistically distant
-        model = IsolationForest(contamination='auto', random_state=42)
-        model.fit(scaled_data)
-        scores = model.decision_function(scaled_data)
+        years = list(feature_df.index)
+        n_samples = len(years)
         
+        # --- Model 1: Isolation Forest ---
+        if_model = IsolationForest(contamination='auto', random_state=42)
+        if_model.fit(scaled_data)
+        if_scores = if_model.decision_function(scaled_data)
+        if_votes = [1 if s < -0.1 else 0 for s in if_scores]
+        
+        # --- Model 2: Local Outlier Factor ---
+        n_neighbors = min(max(2, n_samples - 1), 20)
+        lof_model = LocalOutlierFactor(n_neighbors=n_neighbors, contamination='auto', novelty=False)
+        lof_preds = lof_model.fit_predict(scaled_data)
+        lof_scores = lof_model.negative_outlier_factor_
+        lof_votes = [1 if p == -1 else 0 for p in lof_preds]
+        
+        # --- Model 3: One-Class SVM ---
+        svm_model = OneClassSVM(kernel='rbf', gamma='auto', nu=0.15)
+        svm_preds = svm_model.fit_predict(scaled_data)
+        svm_scores = svm_model.decision_function(scaled_data)
+        svm_votes = [1 if p == -1 else 0 for p in svm_preds]
+        
+        # --- Ensemble Voting ---
         anomalies = []
-        for i, score in enumerate(scores):
-            # Only flag if it's deeply anomalous (negative score)
-            if score < -0.1:
-                outlier_year = df.index[i]
+        year_scores = {}
+        
+        for i, year in enumerate(years):
+            total_votes = if_votes[i] + lof_votes[i] + svm_votes[i]
+            # Normalized ensemble score (0 = definitely normal, 1 = definitely anomalous)
+            ensemble_score = (
+                (1 - (if_scores[i] + 0.5)) * 0.4 +  # IF contribution (40%)
+                (1 - (lof_scores[i] + 1.0)) * 0.3 +  # LOF contribution (30%)
+                (1 - (svm_scores[i] + 0.5)) * 0.3     # SVM contribution (30%)
+            )
+            ensemble_score = max(0.0, min(1.0, ensemble_score))
+            year_scores[year] = ensemble_score
+            
+            # Flag if at least 2 of 3 models agree it's anomalous
+            if total_votes >= 2:
+                voters = []
+                if if_votes[i]: voters.append("Isolation Forest")
+                if lof_votes[i]: voters.append("Local Outlier Factor")
+                if svm_votes[i]: voters.append("One-Class SVM")
+                
                 anomalies.append({
-                    "description": f"Machine Learning (Isolation Forest) identified fiscal year {outlier_year} as a highly anomalous structural outlier compared to historical baselines.",
+                    "description": f"Ensemble ML Detection: Fiscal year {year} flagged as anomalous by {total_votes}/3 models ({', '.join(voters)}). Ensemble anomaly score: {ensemble_score:.2f}.",
                     "severity": "High",
                     "related_metrics": ["Multi-dimensional structural deviation"]
                 })
-        return anomalies
+        
+        return anomalies, year_scores
+        
     except Exception as e:
-        print(f"[ML] Isolation forest failed: {e}")
+        print(f"[ML] Ensemble detection failed: {e}")
+        return [], {}
+
+
+def _run_autoencoder(metrics_by_year: Dict[str, Dict[str, float]]) -> List[Dict[str, Any]]:
+    """
+    Autoencoder-based Anomaly Detection:
+      - Trains a small neural network to reconstruct 'normal' financial profiles.
+      - Years with high reconstruction error are flagged as anomalous.
+      - Uses sklearn's MLPRegressor as a lightweight autoencoder (no PyTorch needed).
+    """
+    feature_df = _compute_advanced_features(metrics_by_year)
+    if len(feature_df) < 4:
         return []
+    
+    df_imputed = feature_df.fillna(feature_df.mean(numeric_only=True)).fillna(0)
+    
+    try:
+        scaler = MinMaxScaler()
+        scaled_data = scaler.fit_transform(df_imputed)
+        n_features = scaled_data.shape[1]
+        
+        # Bottleneck architecture: input -> compressed -> output
+        hidden_size = max(2, n_features // 3)
+        
+        autoencoder = MLPRegressor(
+            hidden_layer_sizes=(hidden_size,),
+            activation='relu',
+            max_iter=500,
+            random_state=42,
+            tol=1e-5,
+            early_stopping=False
+        )
+        
+        # Train autoencoder to reconstruct its own input
+        autoencoder.fit(scaled_data, scaled_data)
+        
+        # Calculate reconstruction error per year
+        reconstructed = autoencoder.predict(scaled_data)
+        errors = np.mean((scaled_data - reconstructed) ** 2, axis=1)
+        
+        # Flag years where reconstruction error is > 2 standard deviations above mean
+        mean_error = np.mean(errors)
+        std_error = np.std(errors)
+        threshold = mean_error + 2 * std_error
+        
+        anomalies = []
+        years = list(feature_df.index)
+        for i, year in enumerate(years):
+            if errors[i] > threshold and std_error > 0.001:  # Avoid flagging when all errors are near-zero
+                anomalies.append({
+                    "description": f"Autoencoder detected fiscal year {year} as anomalous (reconstruction error: {errors[i]:.4f}, threshold: {threshold:.4f}). The financial profile for this year cannot be reconstructed from the learned 'normal' patterns.",
+                    "severity": "High",
+                    "related_metrics": ["Deep Learning structural deviation"]
+                })
+        
+        return anomalies
+        
+    except Exception as e:
+        print(f"[ML] Autoencoder failed: {e}")
+        return []
+
+
+def _check_temporal_trajectory(metrics_by_year: Dict[str, Dict[str, float]]) -> List[Dict[str, Any]]:
+    """
+    Temporal Trajectory Analysis:
+      - Analyzes the slope/trajectory of key metrics over time.
+      - Flags divergent trajectories (e.g., revenue trending up but cash flow trending down).
+    """
+    years = sorted(metrics_by_year.keys())
+    if len(years) < 3:
+        return []
+    
+    anomalies = []
+    
+    # Build time series for key metrics
+    metric_series = {}
+    for metric_name in ["Revenue", "Net Income", "Operating Cash Flow", "Total Debt"]:
+        series = []
+        for year in years:
+            val = metrics_by_year[year].get(metric_name, None)
+            if val is not None:
+                series.append(val)
+            else:
+                series.append(np.nan)
+        if not all(np.isnan(v) for v in series if isinstance(v, float)):
+            metric_series[metric_name] = series
+    
+    # Check Revenue vs Operating Cash Flow trajectory divergence
+    if "Revenue" in metric_series and "Operating Cash Flow" in metric_series:
+        rev = np.array(metric_series["Revenue"])
+        ocf = np.array(metric_series["Operating Cash Flow"])
+        
+        # Calculate slopes using linear regression
+        x = np.arange(len(years))
+        valid_rev = ~np.isnan(rev)
+        valid_ocf = ~np.isnan(ocf)
+        
+        if sum(valid_rev) >= 3 and sum(valid_ocf) >= 3:
+            rev_slope = np.polyfit(x[valid_rev], rev[valid_rev], 1)[0]
+            ocf_slope = np.polyfit(x[valid_ocf], ocf[valid_ocf], 1)[0]
+            
+            # Revenue trending up but cash flow trending down = major red flag
+            rev_mean = np.mean(rev[valid_rev])
+            if rev_mean != 0:
+                rev_trend = rev_slope / abs(rev_mean)
+                ocf_trend = ocf_slope / abs(rev_mean)
+                
+                if rev_trend > 0.05 and ocf_trend < -0.05:
+                    anomalies.append({
+                        "description": f"Trajectory Divergence: Revenue is trending upward while Operating Cash Flow is trending downward. This pattern is a classic indicator of aggressive revenue recognition or earnings manipulation.",
+                        "severity": "Critical",
+                        "related_metrics": ["Revenue", "Operating Cash Flow"]
+                    })
+    
+    # Check Net Income vs Operating Cash Flow divergence
+    if "Net Income" in metric_series and "Operating Cash Flow" in metric_series:
+        ni = np.array(metric_series["Net Income"])
+        ocf = np.array(metric_series["Operating Cash Flow"])
+        
+        valid = ~np.isnan(ni) & ~np.isnan(ocf)
+        if sum(valid) >= 3:
+            # Compute correlation between Net Income and Cash Flow
+            try:
+                corr, p_val = stats.pearsonr(ni[valid], ocf[valid])
+                if corr < -0.5 and p_val < 0.1:
+                    anomalies.append({
+                        "description": f"Net Income and Operating Cash Flow show a strong negative correlation (r={corr:.2f}, p={p_val:.4f}). Healthy companies typically show a positive relationship between earnings and cash generation.",
+                        "severity": "High",
+                        "related_metrics": ["Net Income", "Operating Cash Flow"]
+                    })
+            except Exception:
+                pass
+    
+    return anomalies
+
 
 def detect_anomalies(metrics_by_year: Dict[str, Dict[str, float]]) -> List[Dict[str, Any]]:
     """
-    Detects anomalies using both rule-based heuristics and Unsupervised Machine Learning.
+    Detects anomalies using a multi-layered approach:
+      Layer 1: Rule-based heuristics (YoY thresholds)
+      Layer 2: Advanced Benford's Law (3 statistical tests)
+      Layer 3: Ensemble ML (Isolation Forest + LOF + One-Class SVM)
+      Layer 4: Autoencoder (deep learning reconstruction error)
+      Layer 5: Temporal trajectory analysis (slope divergence)
     """
     anomalies = []
 
@@ -358,13 +649,21 @@ def detect_anomalies(metrics_by_year: Dict[str, Dict[str, float]]) -> List[Dict[
                     })
 
     # --- Machine Learning Overlay ---
-    # 1. Benford's Law
+    # Layer 2: Advanced Benford's Law (3 tests)
     benford_anomaly = _check_benfords_law(metrics_by_year)
     if benford_anomaly:
         anomalies.append(benford_anomaly)
         
-    # 2. Isolation Forest
-    if_anomalies = _run_isolation_forest(metrics_by_year)
-    anomalies.extend(if_anomalies)
+    # Layer 3: Ensemble ML Detection (IF + LOF + OCSVM)
+    ensemble_anomalies, _ = _run_ensemble_detection(metrics_by_year)
+    anomalies.extend(ensemble_anomalies)
+    
+    # Layer 4: Autoencoder
+    ae_anomalies = _run_autoencoder(metrics_by_year)
+    anomalies.extend(ae_anomalies)
+    
+    # Layer 5: Temporal Trajectory Analysis
+    traj_anomalies = _check_temporal_trajectory(metrics_by_year)
+    anomalies.extend(traj_anomalies)
 
     return anomalies
