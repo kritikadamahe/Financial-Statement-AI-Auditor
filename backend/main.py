@@ -61,9 +61,27 @@ async def upload_file(
         benchmarks = get_industry_benchmarks(industry)
 
         # 3. AI Layer
+        nlp_analysis_result = analyze_mda_text(raw_text) if 'raw_text' in locals() else None
+
+        # Apply NLP Veto if risk_score is low (< 30) AND NLP analysis actually succeeded (not failed or unavailable)
+        if nlp_analysis_result and "NLP analysis unavailable" not in nlp_analysis_result.get('summary', '') and "NLP analysis failed" not in nlp_analysis_result.get('summary', ''):
+            if nlp_analysis_result.get('risk_score', 100) < 30:
+                filtered_anomalies = []
+                for anomaly in anomalies:
+                    severity = anomaly.get('severity', '')
+                    if severity in ['Medium', 'Low']:
+                        # Drop / Veto this anomaly
+                        continue
+                    elif severity == 'High':
+                        # Downgrade to Medium
+                        anomaly['severity'] = 'Medium'
+                        filtered_anomalies.append(anomaly)
+                    else:
+                        filtered_anomalies.append(anomaly)
+                anomalies = filtered_anomalies
+
         audit_questions = generate_audit_questions(anomalies, ratios)
         compliance_flags = check_compliance(all_metrics_by_year)
-        nlp_analysis_result = analyze_mda_text(raw_text) if 'raw_text' in locals() else None
 
         raw_data_summary = {"years_analyzed": list(all_metrics_by_year.keys())}
         combined_filename = ", ".join(filenames)
