@@ -77,3 +77,35 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
+
+@media print {
+  /* Hide UI elements not meant for print */
+  aside, 
+  nav, 
+  header, 
+  button, 
+  .no-print,
+  #chat-sidebar,
+  .print-hidden {
+    display: none !important;
+  }
+  
+  /* Ensure main content takes full width and isn't constrained by sidebar layouts */
+  main, .flex-1 {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  
+  /* Prevent page breaks inside cards */
+  .card, .p-6, .border {
+    break-inside: avoid;
+  }
+  
+  /* Set background to white for printing */
+  body, .dark body {
+    background: white !important;
+    color: black !important;
+  }
+}

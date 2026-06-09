@@ -231,23 +231,9 @@ export default function Home() {
     setChatHistory([]);
   };
 
-  const handleExportPDF = async () => {
-    const element = document.getElementById('report-dashboard');
-    if (!element) return;
-    try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      const opt = {
-        margin: 0.2,
-        filename: `FinAuditAI_Report_${result?.filename || 'audit'}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in' as const, format: 'letter' as const, orientation: 'landscape' as const }
-      };
-      html2pdf().set(opt).from(element).save();
-    } catch(e) {
-      console.error("PDF export failed", e);
-      alert("PDF Export failed. Ensure html2pdf.js is fully loaded.");
-    }
+  const handleExportPDF = () => {
+    // Rely on the browser's native print engine for perfect SVG chart rendering
+    window.print();
   };
 
   const handleChatSubmit = async (e: React.FormEvent) => {
