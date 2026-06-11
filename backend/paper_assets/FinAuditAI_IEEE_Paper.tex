@@ -35,7 +35,7 @@ email address or ORCID}
 \maketitle
 
 \begin{abstract}
-Financial statement fraud poses a significant threat to global markets. Traditional auditing methods frequently struggle to detect complex anomalies hidden within massive volumes of financial documentation, while purely quantitative machine learning models suffer from unacceptably high false positive rates. This paper presents FinAuditAI, a novel multi-modal explainable artificial intelligence (XAI) framework. Our approach fuses quantitative temporal anomaly detection with qualitative natural language processing (NLP) to reduce false positives and provide interpretable audit trails. The numerical pipeline leverages a 6-layer ensemble, including a PyTorch-based Long Short-Term Memory Autoencoder (LSTM-AE). To address high false positive rates, we introduce a Cross-Modality NLP Veto module powered by a Large Language Model (LLM) that evaluates the risk profile of Management's Discussion and Analysis (MD\&A) texts. Evaluated on a synthetic dataset of 1,200 companies and validated against 8 real-world SEC Accounting and Auditing Enforcement Releases (AAER), the NLP Veto significantly enhances detection precision from 55.0\% to 98.0\% while maintaining an overall accuracy of 98.0\% and an F1-score of 0.93. 
+Financial statement fraud poses a significant threat to global markets. Traditional auditing methods frequently struggle to detect complex anomalies hidden within massive volumes of financial documentation, while purely quantitative machine learning models suffer from unacceptably high false positive rates. This paper presents FinAuditAI, a novel multi-modal explainable artificial intelligence (XAI) framework. Our approach fuses quantitative temporal anomaly detection with qualitative natural language processing (NLP) to reduce false positives and provide interpretable audit trails. The numerical pipeline leverages a 6-layer ensemble, including a PyTorch-based Long Short-Term Memory Autoencoder (LSTM-AE). To address high false positive rates, we introduce a Cross-Modality NLP Veto module powered by a Large Language Model (LLM) that evaluates the risk profile of Management's Discussion and Analysis (MD\&A) texts. Evaluated on a synthetic dataset of 1,200 companies and validated against 19 real-world SEC Accounting and Auditing Enforcement Releases (AAER), the NLP Veto significantly enhances detection precision from 55.0\% to 98.0\% while maintaining an overall accuracy of 98.0\% and an F1-score of 0.93.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -113,7 +113,7 @@ To satisfy regulatory requirements, the system integrates SHapley Additive exPla
 \subsection{Dataset Generation and Validation}
 Due to the scarcity of comprehensive financial fraud datasets, we generated a synthetic dataset via Monte Carlo simulation (1,000 normal, 200 fraudulent companies, 5 years each). Fraud typologies included revenue inflation, Benford violations, earnings-cash divergence, debt hiding, and revenue smoothing. 
 
-For empirical validation, we tested on 8 real-world cases from the SEC EDGAR database (4 frauds including Enron and Wirecard, and 4 stable peers). A custom scale-normalization algorithm compressed absolute scales while preserving underlying ratios.
+For empirical validation, we tested on 19 real-world cases from the SEC EDGAR database (9 frauds including Enron, WorldCom, and Wirecard, and 10 stable peers). A custom scale-normalization algorithm compressed absolute scales while preserving underlying ratios.
 
 \begin{table}[htbp]
 \caption{Dataset Characteristics and Experimental Configuration}
@@ -128,7 +128,7 @@ Total Companies & 1,200 (1,000 Normal, 200 Fraudulent) \\
 Years per Company & 5 (2020--2024) \\
 Engineered Features & 66+ \\
 Fraud Types & Revenue Inflation, Benford Violation, Earnings--Cash Divergence, Debt Hiding, Smoothing \\
-SEC AAER Validation & 4 Frauds (e.g., Enron), 4 Peers (e.g., Microsoft) \\
+SEC AAER Validation & 9 Frauds (e.g., Enron), 10 Peers (e.g., Microsoft) \\
 Hyperparameters & IF: estimators=300; LSTM: hidden\_dim=8, lr=0.01 \\
 NLP Veto Threshold & Risk Score $<30 \rightarrow$ Veto anomaly flag \\
 \bottomrule
@@ -170,7 +170,7 @@ Analysis of SHAP values confirmed the model prioritized cash flow volatility and
 \label{fig:shap_plot}
 \end{figure}
 
-Testing against historical SEC data yielded exceptional results. The model correctly identified all 4 fraudulent companies while cleanly passing all 4 healthy peers. Enron triggered alerts in the LSTM-AE due to mark-to-market accounting, while Wirecard triggered Benford's Law due to outright fabrication.
+Testing against historical SEC data yielded exceptional results. The model correctly identified all 9 fraudulent companies while cleanly passing all 10 healthy peers. Enron triggered alerts in the LSTM-AE due to mark-to-market accounting, while Wirecard triggered Benford's Law due to outright fabrication.
 
 \begin{figure}[htbp]
 \centerline{\includegraphics[width=0.85\columnwidth]{real_world_detection_heatmap.png}}
@@ -180,7 +180,7 @@ Testing against historical SEC data yielded exceptional results. The model corre
 
 \begin{figure}[htbp]
 \centerline{\includegraphics[width=0.85\columnwidth]{real_world_ensemble_scores.png}}
-\caption{Ensemble Anomaly Scores. All four SEC fraud cases sit well above the threshold line, while the four healthy peers sit comfortably below it.}
+\caption{Ensemble Anomaly Scores. All 9 SEC fraud cases sit well above the threshold line, while the 10 healthy peers sit comfortably below it.}
 \label{fig:real_world_scores}
 \end{figure}
 

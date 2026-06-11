@@ -362,7 +362,8 @@ def evaluate_real_world():
                 cbar_kws={'label': 'Anomaly Score'})
 
     # Draw separator line between fraud and healthy companies
-    ax.axhline(y=4, color='black', linewidth=3)
+    num_frauds = sum(1 for r in results if r["label"] == 1)
+    ax.axhline(y=num_frauds, color='black', linewidth=3)
 
     ax.set_title("Per-Layer Detection Heatmap — Real-World Case Studies\n"
                  "(Top: Fraud Companies | Bottom: Healthy Peers)",
@@ -417,7 +418,7 @@ def evaluate_real_world():
                 xticklabels=["Healthy", "Fraud"],
                 yticklabels=["Healthy", "Fraud"],
                 annot_kws={"size": 18}, ax=ax)
-    ax.set_title("Real-World Validation Confusion Matrix\n(N=8 Companies)",
+    ax.set_title(f"Real-World Validation Confusion Matrix\n(N={len(results)} Companies)",
                  fontsize=13, fontweight='bold')
     ax.set_ylabel('True Label', fontsize=12)
     ax.set_xlabel('Predicted Label', fontsize=12)
