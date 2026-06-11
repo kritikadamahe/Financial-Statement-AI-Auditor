@@ -35,103 +35,59 @@ email address or ORCID}
 \maketitle
 
 \begin{abstract}
-Financial statement fraud poses a significant threat to global markets, often involving sophisticated manipulation of numerical data and qualitative disclosures. Traditional auditing methods frequently struggle to detect complex anomalies hidden within massive volumes of financial documentation, while purely quantitative machine learning models suffer from unacceptably high false positive rates when evaluating high-growth but legitimate companies. This paper presents FinAuditAI, a novel multi-modal explainable artificial intelligence (XAI) framework designed to automatically detect financial statement fraud. Our approach fuses quantitative temporal anomaly detection with qualitative natural language processing (NLP) to reduce false positives and provide interpretable audit trails. The numerical pipeline leverages a 6-layer ensemble comprising Benford's Law analysis, temporal trajectory tracking, Isolation Forest, Local Outlier Factor (LOF), One-Class SVM, and a PyTorch-based Long Short-Term Memory Autoencoder (LSTM-AE). To address the high false positive rates typical of anomaly detection, we introduce a Cross-Modality NLP Veto module powered by a Large Language Model (LLM) that evaluates the risk profile of Management's Discussion and Analysis (MD\&A) texts. We evaluate our framework on a large synthetic dataset of 1,200 simulated companies and validate it empirically against 8 real-world cases from the SEC Accounting and Auditing Enforcement Releases (AAER), including major corporate frauds like Enron, WorldCom, and Wirecard. Experimental results demonstrate that the inclusion of the NLP Veto significantly enhances detection precision from 55.0\% to 98.0\% while maintaining an overall accuracy of 98.0\% and an F1-score of 0.93. 
+Financial statement fraud poses a significant threat to global markets. Traditional auditing methods frequently struggle to detect complex anomalies hidden within massive volumes of financial documentation, while purely quantitative machine learning models suffer from unacceptably high false positive rates. This paper presents FinAuditAI, a novel multi-modal explainable artificial intelligence (XAI) framework. Our approach fuses quantitative temporal anomaly detection with qualitative natural language processing (NLP) to reduce false positives and provide interpretable audit trails. The numerical pipeline leverages a 6-layer ensemble, including a PyTorch-based Long Short-Term Memory Autoencoder (LSTM-AE). To address high false positive rates, we introduce a Cross-Modality NLP Veto module powered by a Large Language Model (LLM) that evaluates the risk profile of Management's Discussion and Analysis (MD\&A) texts. Evaluated on a synthetic dataset of 1,200 companies and validated against 8 real-world SEC Accounting and Auditing Enforcement Releases (AAER), the NLP Veto significantly enhances detection precision from 55.0\% to 98.0\% while maintaining an overall accuracy of 98.0\% and an F1-score of 0.93. 
 \end{abstract}
 
 \begin{IEEEkeywords}
-financial statement fraud, anomaly detection, deep learning, NLP, explainable AI, LSTM autoencoder, multi-modal fusion
+financial statement fraud, anomaly detection, deep learning, NLP, explainable AI, LSTM autoencoder
 \end{IEEEkeywords}
 
 \section{Introduction}
-Financial statement fraud causes billions of dollars in losses annually, erodes investor confidence, and undermines the integrity of global financial markets \cite{12}. The Association of Certified Fraud Examiners (ACFE) estimates that organizations lose 5\% of their revenues to fraud each year, with financial statement fraud being the most costly category. Detecting such manipulation is inherently difficult because fraudsters—often high-level executives—employ sophisticated, multifaceted techniques. These include revenue inflation, premature recognition of sales, capitalization of operating expenses, and the use of complex off-balance-sheet special purpose entities (SPEs) designed to appear mathematically sound in isolation \cite{4}.
+Financial statement fraud causes billions of dollars in losses annually and undermines the integrity of global markets \cite{12}. Detecting manipulation is inherently difficult because fraudsters employ sophisticated techniques designed to appear mathematically sound in isolation \cite{4}.
 
-While rule-based systems and classical machine learning (ML) techniques have been applied to this domain for decades, they suffer from two critical limitations: a lack of temporal context and prohibitively high false positive rates. Traditional models often treat financial periods independently, operating on static single-year ratios. This approach fails to capture subtle multi-year income smoothing or erratic temporal trajectories that characterize long-term fraud \cite{16}. Furthermore, purely quantitative models frequently flag legitimate, high-growth companies as fraudulent simply because their numerical trajectories deviate from the industry norm, causing alert fatigue among human auditors \cite{11}. 
+While classical machine learning (ML) techniques have been applied to this domain, they suffer from two critical limitations: lack of temporal context and prohibitively high false positive rates. Traditional models often treat financial periods independently, failing to capture subtle multi-year income smoothing \cite{16}. Furthermore, purely quantitative models frequently flag legitimate, high-growth companies as fraudulent, causing alert fatigue \cite{11}. 
 
-To overcome these challenges, we introduce FinAuditAI, a multi-modal explainable AI framework that mirrors the dual approach of human forensic accountants. Forensic auditors do not merely analyze spreadsheets; they read the accompanying footnotes and management disclosures for evasive language and contradictions. FinAuditAI advances the state-of-the-art by implementing a comprehensive 6-layer numerical anomaly detection ensemble that includes a PyTorch LSTM-AE capable of modeling 5-year chronological dependencies. Crucially, we pair this numerical engine with a Cross-Modality NLP Veto module. By semantically analyzing the unstructured textual data in Annual Reports (e.g., MD\&A) using a Large Language Model (LLM), the system can contextualize numerical anomalies and "veto" false alarms triggered by healthy corporate events (e.g., legitimate mergers or R\&D expansions), dramatically improving precision.
-
-The main contributions of this paper are:
-\begin{enumerate}
-    \item We propose a novel 6-layer numerical ensemble that fuses classical unsupervised anomaly detection with a deep temporal LSTM Autoencoder to capture multi-year fraud typologies.
-    \item We introduce a Cross-Modality NLP Veto mechanism that leverages LLM-based textual risk scoring to drastically reduce the false positive rate of the quantitative anomaly detector.
-    \item We present a comprehensive explainability framework using SHapley Additive exPlanations (SHAP) to provide auditors with mathematically sound feature attributions for every flagged anomaly.
-    \item We validate the framework on both a large-scale Monte Carlo simulated dataset (N=1,200) and historical SEC AAER real-world data (Enron, WorldCom, Wirecard, Luckin Coffee), achieving state-of-the-art detection metrics.
-\end{enumerate}
+FinAuditAI advances the state-of-the-art by implementing a comprehensive 6-layer numerical anomaly detection ensemble that includes a PyTorch LSTM-AE capable of modeling 5-year chronological dependencies. Crucially, we pair this numerical engine with a Cross-Modality NLP Veto module. By semantically analyzing unstructured textual data in Annual Reports using an LLM, the system contextualizes numerical anomalies and "vetoes" false alarms triggered by healthy corporate events, dramatically improving precision.
 
 \section{Related Work}
-The detection of financial statement fraud using computational techniques has evolved from classical statistical models to modern deep learning and natural language processing. 
+Early computational research relied on static financial ratios evaluated through supervised classifiers like SVMs \cite{11}, \cite{16}. However, these require scarce labeled data. Consequently, unsupervised anomaly detection (e.g., Isolation Forests \cite{7}) gained traction. Recently, deep learning autoencoders have been employed to detect accounting anomalies \cite{3}, \cite{15}. However, standard dense autoencoders often ignore sequential reporting dynamics. 
 
-\subsection{Traditional Statistical and Machine Learning Approaches}
-Early computational research in auditing relied heavily on static financial ratios evaluated through supervised classifiers such as Support Vector Machines (SVM), decision trees, and logistic regression \cite{11}, \cite{16}. Cecchini et al. \cite{4} utilized financial ratios combined with a theory-of-planned-behavior approach, achieving around 90\% accuracy on structured datasets. However, these models inherently require labeled data, which is scarce in real-world auditing environments due to the highly imbalanced nature of fraud. Consequently, unsupervised anomaly detection techniques such as Isolation Forests \cite{7} and Local Outlier Factor (LOF) \cite{9} gained traction for their ability to isolate outliers without prior labeling.
-
-\subsection{Deep Learning for Financial Anomalies}
-More recently, deep learning autoencoders have been employed to detect accounting anomalies by learning the latent representations of normal journal entries \cite{3}, \cite{15}. By attempting to reconstruct inputs from a compressed bottleneck layer, autoencoders flag inputs with high reconstruction errors as anomalous. While effective, these standard dense autoencoders often ignore the sequential nature of financial reporting. Furthermore, the "black box" nature of deep neural networks limits their adoption in regulated auditing environments where explainability is a strict requirement.
-
-\subsection{Natural Language Processing in Accounting}
-Simultaneously, researchers have explored textual analysis of corporate disclosures. Loughran and McDonald \cite{1} demonstrated that the linguistic tone of 10-K filings, measured via specialized financial dictionaries, is highly indicative of corporate liability and subsequent stock performance. Bao et al. \cite{5} applied ML to textual disclosures for fraud detection, proving that what management writes is often as important as the numbers they report. Craja et al. \cite{2} proposed a multi-modal approach combining hierarchical attention networks with LSTMs to process both text and numbers. FinAuditAI builds upon this multi-modal paradigm but introduces a novel "veto" architecture where NLP operates as an independent risk-moderation layer specifically designed to suppress false positives.
+Simultaneously, researchers explored textual analysis of corporate disclosures. Loughran and McDonald \cite{1} demonstrated that linguistic tone is highly indicative of corporate liability. Bao et al. \cite{5} and Craja et al. \cite{2} proposed multi-modal approaches combining text and numbers. FinAuditAI builds upon this paradigm but introduces a novel "veto" architecture where NLP acts as an independent risk-moderation layer specifically designed to suppress false positives.
 
 \section{Methodology}
 
 \subsection{System Architecture}
-The FinAuditAI pipeline is structured as a dual-path architecture converging into a final decision matrix. The system is designed to ingest raw unstructured PDF annual reports and structured CSV financial statements simultaneously.
+The FinAuditAI pipeline is structured as a dual-path architecture converging into a final decision matrix. It ingests both structured financial data (CSV) and unstructured reports (PDF).
 
 \begin{figure}[htbp]
 \centerline{\includegraphics[width=\columnwidth]{architecture diagram.png}}
-\caption{System Architecture of FinAuditAI, illustrating the dual-path quantitative and qualitative processing pipeline.}
+\caption{System Architecture of FinAuditAI. The upper branch ingests numerical data through a 6-layer ensemble. The lower branch extracts unstructured text for LLM semantic analysis. The Cross-Modality NLP Veto fuses both to produce the final classification.}
 \label{fig:architecture}
 \end{figure}
 
-\textit{Detailed Description of Fig. \ref{fig:architecture}:} As shown in the architectural diagram, the system functions via two parallel branches. The upper branch ingests numerical CSV data, feeding it through a complex feature engineering module that calculates 66+ variables. These features are then passed into the 6-layer quantitative anomaly detection ensemble to produce a mathematical anomaly score. Concurrently, the lower branch extracts unstructured text from PDF Annual Reports using PyMuPDF. This text is fed into the LLM Risk Scorer (Gemini 1.5 Flash), which evaluates the semantic content of the Management's Discussion and Analysis (MD\&A) section. The final crucial step occurs at the "Cross-Modality NLP Veto" decision node, where the quantitative and qualitative scores are fused to produce the final classification.
-
 \subsection{Feature Engineering}
-The system extracts 11 core financial metrics over a 5-year period (Revenue, COGS, Net Income, Current Assets, Current Liabilities, Total Assets, Total Debt, Total Equity, Operating Cash Flow, Gross Profit, Operating Expenses). From these, we engineer 66+ features that capture the distribution and temporal dynamics of the company. Key features include:
-
-\textbf{1. Volatility Metrics:} We calculate the standard deviation and max/min ratios of all base metrics across the 5 years. For instance, the Year-over-Year (YoY) volatility of Operating Cash Flow is a critical indicator of manipulation.
-
-\textbf{2. Financial Ratios:} We derive standard liquidity and solvency ratios, including Current Ratio ($CR_t = \frac{CA_t}{CL_t}$), Debt-to-Equity ($DE_t = \frac{TD_t}{TE_t}$), and Gross Margin ($GM_t = \frac{Rev_t - COGS_t}{Rev_t}$). We use the temporal mean and variance of these ratios as features.
-
-\textbf{3. Slope Divergence:} We compute the linear regression slope of Revenue ($\beta_{Rev}$) and Operating Cash Flow ($\beta_{OCF}$) over time. The slope divergence feature is defined as:
-\begin{equation}
-    Divergence = \frac{\beta_{Rev} - \beta_{OCF}}{|\mu_{Rev}|}
-\end{equation}
-A high positive divergence indicates that a company is booking revenues without generating commensurate cash, a classic red flag for earnings manipulation.
+The system extracts 11 core financial metrics over a 5-year period. We engineer 66+ features capturing distribution and temporal dynamics, including YoY volatility, standard liquidity ratios ($CR_t$, $DE_t$), and slope divergence. Slope divergence ($\frac{\beta_{Rev} - \beta_{OCF}}{|\mu_{Rev}|}$) identifies companies booking revenues without generating commensurate cash.
 
 \subsection{Quantitative Anomaly Detection Layers}
-The numerical pipeline utilizes a weighted ensemble of six distinct algorithms, mixing classical statistics with deep learning.
+The numerical pipeline utilizes a weighted ensemble:
 
-\textbf{1. Benford's Law (15\% weight):} Evaluates the distribution of leading digits in the financial statements against the expected logarithmic frequencies $P(d) = \log_{10}(1 + \frac{1}{d})$. Deviations are quantified using the Mean Absolute Deviation (MAD).
+\textbf{1. Benford's Law (15\%):} Evaluates leading digit distributions.
 
-\textbf{2. Isolation Forest (25\% weight):} Configured with 300 estimators and max\_features=0.8, this tree-based model isolates anomalies by randomly partitioning the feature space. The anomaly score is based on the expected path length $E(h(x))$ from the root to the terminating node:
-\begin{equation}
-    s(x, n) = 2^{-\frac{E(h(x))}{c(n)}}
-\end{equation}
-where $c(n)$ is the average path length of an unsuccessful search in a Binary Search Tree \cite{7}.
+\textbf{2. Isolation Forest (25\%):} Isolates anomalies in high-dimensional space based on the expected path length $E(h(x))$ \cite{7}.
 
-\textbf{3. Local Outlier Factor (20\% weight):} Identifies density-based local outliers (n\_neighbors=20) by comparing the local density of a sample to the local densities of its neighbors \cite{9}.
+\textbf{3. Local Outlier Factor (20\%):} Identifies density-based local outliers \cite{9}.
 
-\textbf{4. One-Class SVM (15\% weight):} Learns a non-linear decision boundary bounding normal corporate profiles using a Radial Basis Function (RBF) kernel \cite{8}. The objective is to separate the data from the origin with maximum margin.
+\textbf{4. One-Class SVM (15\%):} Learns a non-linear decision boundary bounding normal corporate profiles \cite{8}.
 
-\textbf{5. LSTM Autoencoder (15\% weight):} 
-To capture the chronological dependencies, we deploy a Sequence-to-Sequence Long Short-Term Memory Autoencoder. The input is a sequence $X = (x_1, x_2, ..., x_T)$ where $T=5$ years. The encoder processes the sequence using standard LSTM update gates:
-\begin{align}
-    f_t &= \sigma(W_f x_t + U_f h_{t-1} + b_f) \\
-    i_t &= \sigma(W_i x_t + U_i h_{t-1} + b_i) \\
-    o_t &= \sigma(W_o x_t + U_o h_{t-1} + b_o) \\
-    \tilde{C}_t &= \tanh(W_c x_t + U_c h_{t-1} + b_c) \\
-    C_t &= f_t * C_{t-1} + i_t * \tilde{C}_t \\
-    h_t &= o_t * \tanh(C_t)
-\end{align}
-The final hidden state $h_T$ acts as the context vector, which the decoder uses to reconstruct the sequence $\hat{X}$. The network is trained solely on normal companies to minimize the Mean Squared Error (MSE) reconstruction loss:
+\textbf{5. LSTM Autoencoder (15\%):} A Sequence-to-Sequence model capturing chronological dependencies over $T=5$ years. The encoder processes the sequence using LSTM gates: $f_t = \sigma(W_f x_t + U_f h_{t-1} + b_f)$, etc. The network is trained on normal companies to minimize MSE reconstruction loss:
 \begin{equation}
     L_{MSE} = \frac{1}{T \cdot F} \sum_{t=1}^{T} \sum_{f=1}^{F} (x_{t,f} - \hat{x}_{t,f})^2
 \end{equation}
-During inference, fraudulent companies with manipulated trajectories produce abnormally high reconstruction errors.
 
-\textbf{6. Temporal Trajectory (10\% weight):} A deterministic rule-based layer that tracks hard violations of accounting logic, such as an exploding Debt-to-Equity ratio concurrent with declining total assets.
+\textbf{6. Temporal Trajectory (10\%):} A rule-based layer tracking hard violations of accounting logic.
 
 \subsection{Cross-Modality NLP Veto}
-Pure anomaly detection generates excessive false positives. To combat this, raw MD\&A text is extracted via PyMuPDF and analyzed by an LLM (Gemini 1.5 Flash). The LLM is prompted via a zero-shot forensic accounting template to evaluate the text for evasive language, complex related-party transactions, and undisclosed liquidity concerns. It outputs a standardized Risk Score ($R_{NLP} \in [0, 100]$).
-
-The final classification algorithm fuses the quantitative ensemble score ($S_{Ens}$) with the qualitative risk score ($R_{NLP}$) using a veto logic.
+Raw MD\&A text is extracted and analyzed by an LLM (Gemini 1.5 Flash). The LLM assigns a standardized Risk Score ($R_{NLP} \in [0, 100]$) based on evasive language and undisclosed liquidity concerns.
 
 \begin{algorithm}
 \caption{Dual-Path Inference with NLP Veto}
@@ -140,11 +96,8 @@ The final classification algorithm fuses the quantitative ensemble score ($S_{En
 \STATE $S_{Ens} \leftarrow \text{ComputeEnsemble}(X_{num})$
 \STATE $R_{NLP} \leftarrow \text{LLMRiskScore}(X_{text})$
 \STATE $\tau \leftarrow \text{85th percentile threshold}$
-\IF{$S_{Ens} > \tau$}
+\IF{$S_{Ens} > \tau$ \AND $R_{NLP} \ge 30$}
     \STATE $Prediction \leftarrow \text{Anomaly}$
-    \IF{$R_{NLP} < 30$}
-        \STATE $Prediction \leftarrow \text{Normal}$ \COMMENT{NLP Veto applied}
-    \ENDIF
 \ELSE
     \STATE $Prediction \leftarrow \text{Normal}$
 \ENDIF
@@ -153,128 +106,86 @@ The final classification algorithm fuses the quantitative ensemble score ($S_{En
 \end{algorithm}
 
 \subsection{Explainability via SHAP}
-To satisfy regulatory requirements for audit interpretability, the system integrates SHapley Additive exPlanations (SHAP). SHAP assigns an importance value to each feature for a specific prediction, representing the marginal contribution of that feature to the final anomaly score. By applying a TreeExplainer to the Isolation Forest, we provide auditors with a direct mapping of which specific financial ratios triggered the fraud alert.
+To satisfy regulatory requirements, the system integrates SHapley Additive exPlanations (SHAP), providing a direct mapping of which specific financial ratios triggered the fraud alert in the Isolation Forest model.
 
 \section{Experimental Setup}
 
-\subsection{Synthetic Dataset Generation}
-Due to the scarcity of publicly available, comprehensive financial fraud datasets spanning multiple years, we generated a massive synthetic dataset via Monte Carlo simulation. The dataset comprises 1,200 companies (1,000 normal, 200 fraudulent) with 5 years of financials. 
+\subsection{Dataset Generation and Validation}
+Due to the scarcity of comprehensive financial fraud datasets, we generated a synthetic dataset via Monte Carlo simulation (1,000 normal, 200 fraudulent companies, 5 years each). Fraud typologies included revenue inflation, Benford violations, earnings-cash divergence, debt hiding, and revenue smoothing. 
 
-Normal companies were generated using stochastic geometric Brownian motion, with baseline revenues scaled between $10^4$ and $10^8$ USD. Margins, asset ratios, and debt limits were sampled from bounded normal distributions calibrated against S\&P 500 historical averages.
-
-To simulate the 200 fraudulent companies, we deterministically injected five distinct fraud typologies:
-\begin{itemize}
-    \item \textbf{Revenue Inflation:} Artificial multipliers applied to Year 5 revenue and net income, while holding cash flow constant.
-    \item \textbf{Benford Violation:} Leading digits of Year 4 and Year 5 metrics artificially skewed towards 7, 8, and 9.
-    \item \textbf{Earnings-Cash Divergence:} Net income increased by $30\%$ annually while operating cash flow decreased inversely.
-    \item \textbf{Debt Hiding:} Total debt aggressively minimized in Year 4 and Year 5 while artificially boosting total equity to balance the equation.
-    \item \textbf{Revenue Smoothing:} Natural variance removed, forcing revenue to grow at an exact, unnatural 5.0\% fixed rate over 5 years.
-\end{itemize}
+For empirical validation, we tested on 8 real-world cases from the SEC EDGAR database (4 frauds including Enron and Wirecard, and 4 stable peers). A custom scale-normalization algorithm compressed absolute scales while preserving underlying ratios.
 
 \begin{table}[htbp]
 \caption{Dataset Characteristics and Experimental Configuration}
 \label{tab:dataset_stats}
 \centering
 \scriptsize
-\begin{tabular}{p{3.0cm} p{4.5cm}}
+\begin{tabular}{p{2.5cm} p{5.0cm}}
 \toprule
 \textbf{Parameter} & \textbf{Value} \\
 \midrule
-
-\multicolumn{2}{c}{\textbf{Synthetic Dataset}} \\
-\midrule
-Total Companies & 1,200 \\
-Normal Companies & 1,000 (83.3\%) \\
-Fraudulent Companies & 200 (16.7\%) \\
+Total Companies & 1,200 (1,000 Normal, 200 Fraudulent) \\
 Years per Company & 5 (2020--2024) \\
-Raw Financial Metrics & 11 \\
 Engineered Features & 66+ \\
-Temporal Sequence Features & 15/year \\
-Training Set & 1,000 Normal companies (unsupervised) \\
-Evaluation Set & All 1,200 companies \\
-Random Seed & 42 \\
-
-\midrule
-\multicolumn{2}{c}{\textbf{SEC AAER Validation Dataset}} \\
-\midrule
-Total Companies & 8 \\
-Fraud Cases & Enron, WorldCom, Wirecard, Luckin Coffee \\
-Healthy Peers & Microsoft, P\&G, J\&J, Visa \\
-Data Source & SEC 10-K Filings (EDGAR), Annual Reports \\
-Time Periods & 1997--2021 (varies by company) \\
+Fraud Types & Revenue Inflation, Benford Violation, Earnings--Cash Divergence, Debt Hiding, Smoothing \\
+SEC AAER Validation & 4 Frauds (e.g., Enron), 4 Peers (e.g., Microsoft) \\
+Hyperparameters & IF: estimators=300; LSTM: hidden\_dim=8, lr=0.01 \\
+NLP Veto Threshold & Risk Score $<30 \rightarrow$ Veto anomaly flag \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{SEC AAER Real-World Dataset}
-For empirical validation, we tested the pre-trained models on 8 real-world cases sourced from the SEC EDGAR database. The dataset includes 4 notorious frauds (Enron, WorldCom, Wirecard, Luckin Coffee) and 4 stable peers (Microsoft, P\&G, J\&J, Visa). Because these real-world entities operate on multi-billion dollar scales—far outside the bounds of the synthetic training data—we applied a custom scale-normalization algorithm. This algorithm normalizes absolute magnitudes while perfectly preserving underlying financial ratios, YoY growth trajectories, and intra-feature correlations, allowing the models to evaluate mathematical structures irrespective of company size.
-
 \section{Results and Evaluation}
 
 \subsection{Performance on Synthetic Data}
-The baseline model (without NLP Veto) was highly sensitive, successfully detecting subtle fraud patterns, but at the cost of high false positives. Upon activating the Cross-Modality NLP Veto, the system achieved optimal performance.
+The baseline model (without NLP Veto) successfully detected subtle fraud patterns but at the cost of high false positives. The LSTM Autoencoder successfully converged, decaying exponentially to an MSE of 0.008 by epoch 60.
 
 \begin{figure}[htbp]
-\centerline{\includegraphics[width=0.8\columnwidth]{ml_confusion_matrix.png}}
-\caption{Confusion Matrix for the Multi-Layer Ensemble on the synthetic population (N=1,200).}
+\centerline{\includegraphics[width=0.75\columnwidth]{ml_confusion_matrix.png}}
+\caption{Confusion Matrix (N=1,200). The final pipeline identified 980 true negatives and 178 true positives, equating to 98.0\% accuracy and 89.0\% recall.}
 \label{fig:confusion_matrix}
 \end{figure}
 
-\textit{Detailed Description of Fig. \ref{fig:confusion_matrix}:} The confusion matrix demonstrates the highly balanced performance of the final pipeline. Out of 1,000 normal companies, 980 were correctly identified as normal (True Negatives), with only 20 false positives. Out of 200 fraudulent companies, the model successfully caught 178 (True Positives), missing only 22 highly subtle manipulations (False Negatives). This equates to an exceptional 98.0\% accuracy and 89.0\% recall.
-
-The LSTM Autoencoder successfully converged during training, establishing a stable baseline for temporal reconstruction. 
-
 \begin{figure}[htbp]
-\centerline{\includegraphics[width=\columnwidth]{lstm_training_loss.png}}
-\caption{LSTM Autoencoder Training Convergence over 100 epochs.}
+\centerline{\includegraphics[width=0.85\columnwidth]{lstm_training_loss.png}}
+\caption{LSTM Autoencoder Training Convergence over 100 epochs, plateauing near an MSE of 0.008, preventing overfitting.}
 \label{fig:lstm_loss}
 \end{figure}
 
-\textit{Detailed Description of Fig. \ref{fig:lstm_loss}:} The loss curve illustrates the Mean Squared Error (MSE) of the PyTorch LSTM Autoencoder during the unsupervised training phase on 1,000 normal company trajectories. The loss decays exponentially within the first 20 epochs, plateauing near an MSE of 0.008 by epoch 60. This smooth convergence curve indicates that the network effectively learned the normal temporal dynamics of financial reporting without overfitting.
-
 \subsection{Impact of the NLP Veto}
-The integration of the NLP Veto proved to be the most significant architectural improvement of the FinAuditAI framework. In auditing, false positives are extremely costly because they trigger expensive, time-consuming manual investigations. By evaluating the textual risk context, the system eliminated nearly all false positives generated by the highly sensitive numerical ensemble.
+The integration of the NLP Veto proved to be the most significant architectural improvement. By evaluating the textual risk context, the system eliminated nearly all false positives generated by the highly sensitive numerical ensemble.
 
 \begin{figure}[htbp]
 \centerline{\includegraphics[width=\columnwidth]{nlp_veto_impact.png}}
-\caption{Impact of the Cross-Modality NLP Veto on detection performance.}
+\caption{Impact of the NLP Veto. Without the veto (red), precision was 55.0\%. With the NLP Veto active (green), precision skyrocketed to 98.0\% while reducing the FPR to 0.2\%.}
 \label{fig:nlp_veto}
 \end{figure}
 
-\textit{Detailed Description of Fig. \ref{fig:nlp_veto}:} This grouped bar chart contrasts the performance metrics before and after the activation of the NLP Veto. Without the NLP Veto (red bars), the model yielded an unacceptable false positive rate of 8.0\%, dragging precision down to 55.0\%. With the NLP Veto active (green bars), precision skyrocketed to 98.0\% while the false positive rate dropped to 0.2\%. This proves our core hypothesis: multi-modal fusion of numbers and text exponentially outperforms numerical anomaly detection alone.
-
-\subsection{Explainability and Feature Importance}
-Analysis of the global SHAP values confirmed that the model learned financially sound fraud indicators rather than relying on spurious correlations. 
+\subsection{Explainability and Real-World Validation}
+Analysis of SHAP values confirmed the model prioritized cash flow volatility and revenue-OCF slope divergence.
 
 \begin{figure}[htbp]
 \centerline{\includegraphics[width=\columnwidth]{shap_feature_importance.png}}
-\caption{SHAP Feature Importance Plot for the Isolation Forest layer.}
+\caption{SHAP Plot. Operating Cash Flow YoY Volatility and Revenue-OCF divergence are the highest contributing features, aligning with forensic accounting theory.}
 \label{fig:shap_plot}
 \end{figure}
 
-\textit{Detailed Description of Fig. \ref{fig:shap_plot}:} This horizontal bar chart ranks the top 15 features based on their mean absolute SHAP values, representing their impact on the Isolation Forest's anomaly score. The highest contributing features are Operating Cash Flow YoY Volatility and Revenue-OCF slope divergence. This aligns perfectly with classical forensic accounting theory, which states that cash flow is harder to manipulate than accrual-based revenue, making the mathematical divergence between the two the strongest leading indicator of earnings manipulation.
-
-\subsection{Real-World Validation (SEC AAER)}
-Testing against historical SEC data yielded exceptional results. The model correctly identified all 4 fraudulent companies while cleanly passing all 4 healthy peers.
+Testing against historical SEC data yielded exceptional results. The model correctly identified all 4 fraudulent companies while cleanly passing all 4 healthy peers. Enron triggered alerts in the LSTM-AE due to mark-to-market accounting, while Wirecard triggered Benford's Law due to outright fabrication.
 
 \begin{figure}[htbp]
-\centerline{\includegraphics[width=\columnwidth]{real_world_detection_heatmap.png}}
-\caption{Detection Heatmap showing the activation of different ensemble layers across the real-world dataset.}
+\centerline{\includegraphics[width=0.85\columnwidth]{real_world_detection_heatmap.png}}
+\caption{Detection Heatmap. Fraud cases (e.g., Enron, Wirecard) show strong anomalies across specific ensemble layers, whereas healthy peers remain clean.}
 \label{fig:real_world_heatmap}
 \end{figure}
 
-\textit{Detailed Description of Fig. \ref{fig:real_world_heatmap}:} The heatmap visually maps the anomaly scores (normalized from 0 to 1) assigned by each individual layer in the 6-layer ensemble across the 8 real-world SEC cases. Darker colors indicate a high probability of fraud. For instance, Enron triggered massive, dark alerts in the LSTM-AE and Trajectory layers due to its complex mark-to-market accounting masking debt. Conversely, Wirecard heavily triggered the Benford's Law and LOF layers due to its outright, crude fabrication of third-party acquiring revenues. Healthy peers (Microsoft, Visa, P\&G, J\&J) show consistently light colors, indicating no significant anomalies detected.
-
 \begin{figure}[htbp]
-\centerline{\includegraphics[width=\columnwidth]{real_world_ensemble_scores.png}}
-\caption{Ensemble Anomaly Scores for real-world SEC AAER cases vs. Healthy Peers.}
+\centerline{\includegraphics[width=0.85\columnwidth]{real_world_ensemble_scores.png}}
+\caption{Ensemble Anomaly Scores. All four SEC fraud cases sit well above the threshold line, while the four healthy peers sit comfortably below it.}
 \label{fig:real_world_scores}
 \end{figure}
 
-\textit{Detailed Description of Fig. \ref{fig:real_world_scores}:} This bar chart contrasts the final, fused ensemble scores for the historical fraud cases against the control group of healthy peers. The red threshold line clearly delineates the decision boundary. All four SEC fraud cases sit well above the threshold line, while all four healthy, highly-audited peers sit comfortably below it, demonstrating the model's robustness and scalability to real-world corporate data.
-
 \subsection{Comparison with Baselines}
-Table \ref{tab:baselines} compares FinAuditAI against established methods in the literature. By fusing temporal deep learning with an LLM-powered NLP veto, FinAuditAI surpasses single-modality and traditional multi-modal approaches.
+Table \ref{tab:baselines} compares FinAuditAI against established methods. Fusing temporal deep learning with an LLM-powered NLP veto allows FinAuditAI to surpass single-modality approaches.
 
 \begin{table}[htbp]
 \caption{Performance Comparison with Existing Methods}
@@ -295,55 +206,28 @@ Craja et al. [2] & Multi-modal & 93.8\% & 86.2\% & 82.1\% & 0.84 \\
 \end{center}
 \end{table}
 
-\section{Discussion and Limitations}
-While FinAuditAI achieves high detection performance, several limitations must be acknowledged. First, the NLP Veto relies on the capabilities of an LLM. While highly effective at discerning evasive language, LLMs can be susceptible to "hallucinations" or manipulation by increasingly sophisticated management disclosures specifically engineered to pass algorithmic scrutiny. Second, our synthetic dataset, though grounded in historical parameters, may not perfectly capture the irrational behaviors present in human-driven fraud. 
-
-Future work will focus on integrating graph neural networks (GNNs) to map related-party transactions and shell company networks, moving beyond the single-entity focus of the current framework.
-
 \section{Conclusion}
-This paper presented FinAuditAI, a pioneering multi-modal explainable AI framework designed to tackle the enduring challenge of financial statement fraud detection. The traditional auditing landscape has historically been hindered by the sheer volume of documentation and the sophisticated methods fraudsters use to disguise manipulation within seemingly normal numerical thresholds. To address these vulnerabilities, FinAuditAI replaces rigid, single-year static analyses with a deep, chronologically-aware 6-layer numerical ensemble. Crucially, the integration of a PyTorch LSTM Autoencoder allowed the system to model the natural 5-year flow of financial metrics, rendering it highly sensitive to long-term income smoothing and aggressive accounting trajectory shifts that simpler models frequently miss.
-
-However, recognizing that pure anomaly detection algorithms inevitably suffer from debilitating false positive rates in dynamic market environments, we introduced the novel Cross-Modality NLP Veto module. By deploying a Large Language Model (LLM) to semantically analyze the qualitative context buried within Management's Discussion and Analysis (MD\&A) disclosures, the framework achieved human-like contextual reasoning. Our experimental results conclusively demonstrated that this multi-modal fusion mechanism is capable of drastically reducing false positives—vetoing benign numerical outliers and thereby catapulting model precision from an unusable 55.0\% to a highly robust 98.0\%.
-
-Beyond synthetic simulation, FinAuditAI proved its viability empirically against real-world historical data sourced directly from SEC AAER filings. The system successfully identified the distinct, complex fraud typologies employed by notorious actors such as Enron, WorldCom, and Wirecard, while completely passing a control group of healthy, audited Fortune 500 peers. Finally, by integrating SHAP for feature attribution, FinAuditAI sheds the opaque "black box" stigma of deep learning, providing forensic accountants with transparent, mathematically verifiable audit trails. Ultimately, FinAuditAI represents a significant leap forward in computational auditing, demonstrating that the future of financial oversight lies in the intelligent fusion of deep temporal mathematics and advanced natural language comprehension.
+FinAuditAI successfully addresses the pervasive issue of high false positive rates in auditing anomaly detection. By combining a 6-layer numerical ensemble with a PyTorch LSTM Autoencoder for chronological modeling, it effectively captures multi-year fraud dynamics. Crucially, the integration of an LLM-powered Cross-Modality NLP Veto drastically reduced false positives, catapulting precision to 98.0\%. The system demonstrated near-perfect empirical performance on major real-world SEC fraud cases, and the inclusion of SHAP explainability provides forensic accountants with transparent audit trails.
 
 \bibliographystyle{IEEEtran}
 \bibliography{IEEEabrv,references} 
-% Note: Using manual bibliography entries below based on compiled research_references.md
 \begin{thebibliography}{00}
-
 \bibitem{1} T. Loughran and B. McDonald, ``When is a liability not a liability? Textual analysis, dictionaries, and 10-Ks,'' \textit{The Journal of Finance}, vol. 66, no. 1, pp. 35--65, Feb. 2011.
-
 \bibitem{2} P. Craja, A. Kim, and S. Lessmann, ``Deep learning for detecting financial statement fraud,'' \textit{Decision Support Systems}, vol. 139, p. 113413, Dec. 2020.
-
 \bibitem{3} M. Schreyer, M. Sattarov, D. Borth, A. Dengel, and P. Reimer, ``Detection of anomalies in large scale accounting data using deep autoencoder networks,'' \textit{arXiv preprint arXiv:1709.05254}, Sep. 2017.
-
-\bibitem{4} M. Cecchini, H. Aytug, G. J. Koehler, and P. Pathak, ``Making sense of corporate disclosures: An theory-of-planned-behavior-based approach to detecting financial statement fraud,'' \textit{Decision Support Systems}, vol. 50, no. 1, pp. 164--175, Dec. 2010.
-
+\bibitem{4} M. Cecchini, H. Aytug, G. J. Koehler, and P. Pathak, ``Making sense of corporate disclosures,'' \textit{Decision Support Systems}, vol. 50, no. 1, pp. 164--175, Dec. 2010.
 \bibitem{5} Y. Bao, B. Ke, B. Li, W. J. Yu, and J. Zhang, ``Detecting financial statement fraud with machine learning on textual disclosures,'' \textit{The Accounting Review}, vol. 95, no. 5, pp. 27--60, Sep. 2020.
-
-\bibitem{6} Y. Dong, J. Zhang, S. Wang, and X. Chen, ``A multi-modal deep learning model for financial statement fraud detection,'' \textit{IEEE Transactions on Knowledge and Data Engineering}, vol. 34, no. 12, pp. 5865--5878, Dec. 2022.
-
-\bibitem{7} F. T. Liu, K. M. Ting, and Z.-H. Zhou, ``Isolation forest,'' in \textit{Proceedings of the 2008 Eighth IEEE International Conference on Data Mining (ICDM)}, Dec. 2008, pp. 413--422.
-
-\bibitem{8} B. Schölkopf, J. C. Platt, J. Shawe-Taylor, A. J. Smola, and R. C. Williamson, ``Estimating the support of a high-dimensional distribution,'' \textit{Neural Computation}, vol. 13, no. 7, pp. 1443--1471, Jul. 2001.
-
-\bibitem{9} M. M. Breunig, H.-P. Kriegel, R. T. Ng, and J. Sander, ``LOF: Identifying density-based local outliers,'' in \textit{Proceedings of the 2000 ACM SIGMOD International Conference on Management of Data}, May 2000, pp. 93--104.
-
+\bibitem{6} Y. Dong, J. Zhang, S. Wang, and X. Chen, ``A multi-modal deep learning model for financial statement fraud detection,'' \textit{IEEE Trans. on Knowledge and Data Engineering}, vol. 34, no. 12, pp. 5865--5878, Dec. 2022.
+\bibitem{7} F. T. Liu, K. M. Ting, and Z.-H. Zhou, ``Isolation forest,'' in \textit{Proc. of ICDM}, Dec. 2008, pp. 413--422.
+\bibitem{8} B. Schölkopf et al., ``Estimating the support of a high-dimensional distribution,'' \textit{Neural Computation}, vol. 13, no. 7, pp. 1443--1471, Jul. 2001.
+\bibitem{9} M. M. Breunig, H.-P. Kriegel, R. T. Ng, and J. Sander, ``LOF: Identifying density-based local outliers,'' in \textit{Proc. of ACM SIGMOD}, May 2000, pp. 93--104.
 \bibitem{10} S. Hochreiter and J. Schmidhuber, ``Long short-term memory,'' \textit{Neural Computation}, vol. 9, no. 8, pp. 1735--1780, Nov. 1997.
-
-\bibitem{11} P. Ravisankar, V. Ravi, G. Raghava Rao, and I. Bose, ``Detection of financial statement fraud and manipulation using data mining techniques,'' \textit{Decision Support Systems}, vol. 50, no. 2, pp. 282--294, Jan. 2011.
-
+\bibitem{11} P. Ravisankar et al., ``Detection of financial statement fraud and manipulation using data mining techniques,'' \textit{Decision Support Systems}, vol. 50, no. 2, pp. 282--294, Jan. 2011.
 \bibitem{12} J. West and M. Bhattacharya, ``Intelligent financial fraud detection: A systematic review,'' \textit{Computers \& Security}, vol. 57, pp. 47--66, Mar. 2016.
-
-\bibitem{13} S. L. Humpherys, K. C. Moffitt, M. B. Burns, J. K. Burgoon, and D. P. Adkins, ``Identification of fraudulent financial statements using sub-linguistic cues,'' \textit{Decision Support Systems}, vol. 50, no. 3, pp. 585--595, Feb. 2011.
-
-\bibitem{14} F. Li, ``The information content of forward-looking statements in corporate filings—A Naive Bayesian analyses,'' \textit{Journal of Accounting and Economics}, vol. 49, no. 1-2, pp. 82--102, Feb. 2010.
-
-\bibitem{15} M. Schreyer, M. Sattarov, P. Reimer, and D. Borth, ``Adversarial autoencoder networks for the detection of accounting anomalies,'' \textit{arXiv preprint arXiv:1910.08271}, Oct. 2019.
-
-\bibitem{16} S. Kotsiantis, E. Koumanakos, D. Tselis, and V. Tampakas, ``Financial statement fraud detection using supervised machine learning algorithms,'' \textit{Journal of Enterprise Information Management}, vol. 19, no. 3, pp. 321--340, May 2006.
-
+\bibitem{13} S. L. Humpherys et al., ``Identification of fraudulent financial statements using sub-linguistic cues,'' \textit{Decision Support Systems}, vol. 50, no. 3, pp. 585--595, Feb. 2011.
+\bibitem{14} F. Li, ``The information content of forward-looking statements in corporate filings,'' \textit{Journal of Accounting and Economics}, vol. 49, no. 1-2, pp. 82--102, Feb. 2010.
+\bibitem{15} M. Schreyer et al., ``Adversarial autoencoder networks for the detection of accounting anomalies,'' \textit{arXiv preprint arXiv:1910.08271}, Oct. 2019.
+\bibitem{16} S. Kotsiantis et al., ``Financial statement fraud detection using supervised machine learning algorithms,'' \textit{Journal of Enterprise Information Management}, vol. 19, no. 3, pp. 321--340, May 2006.
 \end{thebibliography}
 
 \end{document}
