@@ -1,0 +1,35 @@
+{
+    "seed": 42,
+    "num_normal": 1000,
+    "num_fraud": 200,
+    "years": [
+        2020,
+        2024
+    ],
+    "metrics_generated": [
+        "company_id",
+        "company_name",
+        "sector",
+        "is_fraud",
+        "fraud_type",
+        "year",
+        "revenue",
+        "cogs",
+        "gross_profit",
+        "opex",
+        "net_income",
+        "current_assets",
+        "total_assets",
+        "current_liabilities",
+        "total_debt",
+        "total_equity",
+        "operating_cash_flow",
+        "inventory",
+        "accounts_receivable",
+        "depreciation_amortization",
+        "accounts_payable",
+        "other_current_liabilities"
+    ],
+    "validation_grade": "A",
+    "accounting_violation_rate": 0.0
+}
