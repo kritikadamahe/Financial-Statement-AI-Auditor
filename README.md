@@ -181,7 +181,10 @@ pip install groq
 uvicorn main:app --port 8000
 ```
 
-> **Note:** The Groq API key is pre-configured in `services/ai.py`. To use your own key, replace the `GROQ_API_KEY` value in that file or set it as an environment variable.
+> **Note:** Create a `.env` file in the `backend/` directory and add your Groq API key:
+> ```env
+> GROQ_API_KEY=your_groq_api_key_here
+> ```
 
 The API will be available at **http://localhost:8000**. You can view the interactive docs at **http://localhost:8000/docs**.
 
@@ -214,6 +217,39 @@ The application will be available at **http://localhost:3000**.
    - Check the **GAAP/IFRS Compliance** panel for any structural issues.
    - Click **"AI Copilot"** to chat with your financial data.
    - Click **"Export PDF"** to download a professional audit report.
+
+---
+
+## Evaluation & Research Pipeline
+
+FinAuditAI includes a robust evaluation and research pipeline to generate synthetic training datasets, benchmark LLM parsing accuracy, and analyze model performance.
+
+### 1. 1,200-Trial Monte Carlo ML Simulation
+To resolve data scarcity, we simulate a realistic corporate population (1,000 normal + 200 fraudulent companies across 5 historical fraud types). To generate a new synthetic cohort:
+```bash
+# From the project root directory
+python -m monte_carlo.main
+```
+This generates:
+* `monte_carlo/synthetic_dataset.csv` (the raw panel dataset).
+* `monte_carlo/dataset_report.md` (methodology and validation audit report).
+* Visualization density curves and heatmap plots stored directly in `monte_carlo/`.
+
+### 2. Population-Level Model Training & Evaluation
+To train the anomaly models (Isolation Forest, Local Outlier Factor, One-Class SVM, and PyTorch LSTM Autoencoder) on the normal baseline population and evaluate their performance on the fraudulent cohort:
+```bash
+cd backend
+python evaluate_ml.py
+```
+This outputs classification reports, confusion matrices, ROC curves, and per-layer breakdown charts at **300 DPI** inside `backend/paper_assets/`.
+
+### 3. LLM Extraction Accuracy Benchmark
+To test cell-level accuracy of the LLM parser against ground-truth spreadsheets across 4 sectors (Tech, Manufacturing, Retail, Healthcare):
+```bash
+cd backend
+python evaluate_extraction.py
+```
+This saves the extraction accuracy bar chart to `backend/paper_assets/extraction_accuracy.png`.
 
 ---
 
