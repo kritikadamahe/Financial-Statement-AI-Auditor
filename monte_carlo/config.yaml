@@ -1,0 +1,91 @@
+# FinAuditAI Monte Carlo Simulation Configuration (IEEE Reconciled Version)
+
+seed: 42
+num_normal: 1000
+num_fraud: 200
+start_year: 2020
+end_year: 2024
+pareto_alpha: 1.15 # Power-law distribution shape for company sizes
+
+sectors:
+  Technology:
+    base_revenue_min: 500000.0
+    revenue_drift: 0.12
+    revenue_volatility: 0.15
+    cogs_ratio_mean: 0.40
+    cogs_ratio_std: 0.05
+    opex_ratio_mean: 0.25
+    opex_ratio_std: 0.04
+    asset_turnover_mean: 1.5
+    asset_turnover_std: 0.2
+    leverage_mean: 0.4
+    leverage_std: 0.1
+    # Reconciled working capital targets (in days)
+    dso_mean: 45.0
+    dso_std: 5.0
+    dio_mean: 30.0
+    dio_std: 4.0
+    dpo_mean: 40.0
+    dpo_std: 5.0
+    depreciation_rate_mean: 0.06
+    depreciation_rate_std: 0.01
+  Manufacturing:
+    base_revenue_min: 2000000.0
+    revenue_drift: 0.05
+    revenue_volatility: 0.08
+    cogs_ratio_mean: 0.60
+    cogs_ratio_std: 0.04
+    opex_ratio_mean: 0.20
+    opex_ratio_std: 0.03
+    asset_turnover_mean: 1.0
+    asset_turnover_std: 0.1
+    leverage_mean: 0.8
+    leverage_std: 0.15
+    dso_mean: 60.0
+    dso_std: 6.0
+    dio_mean: 75.0
+    dio_std: 8.0
+    dpo_mean: 50.0
+    dpo_std: 5.0
+    depreciation_rate_mean: 0.08
+    depreciation_rate_std: 0.01
+  Retail:
+    base_revenue_min: 3000000.0
+    revenue_drift: 0.08
+    revenue_volatility: 0.10
+    cogs_ratio_mean: 0.65
+    cogs_ratio_std: 0.05
+    opex_ratio_mean: 0.22
+    opex_ratio_std: 0.03
+    asset_turnover_mean: 2.0
+    asset_turnover_std: 0.2
+    leverage_mean: 0.6
+    leverage_std: 0.12
+    dso_mean: 15.0
+    dso_std: 2.0
+    dio_mean: 90.0
+    dio_std: 9.0
+    dpo_mean: 60.0
+    dpo_std: 6.0
+    depreciation_rate_mean: 0.05
+    depreciation_rate_std: 0.01
+  Healthcare:
+    base_revenue_min: 1000000.0
+    revenue_drift: 0.07
+    revenue_volatility: 0.12
+    cogs_ratio_mean: 0.50
+    cogs_ratio_std: 0.04
+    opex_ratio_mean: 0.28
+    opex_ratio_std: 0.05
+    asset_turnover_mean: 0.8
+    asset_turnover_std: 0.1
+    leverage_mean: 0.5
+    leverage_std: 0.1
+    dso_mean: 50.0
+    dso_std: 5.0
+    dio_mean: 40.0
+    dio_std: 4.0
+    dpo_mean: 45.0
+    dpo_std: 4.0
+    depreciation_rate_mean: 0.07
+    depreciation_rate_std: 0.01
