@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+pandas
+PyMuPDF
+google-generativeai
+torch
+numpy
+yfinance
+joblib
+shap
+scipy
+groq
+python-dotenv
+python-multipart
+reportlab
